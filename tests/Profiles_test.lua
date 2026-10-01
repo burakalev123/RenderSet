@@ -252,6 +252,112 @@ function tests.capture_complete_failure_preserves_existing_profile()
     assertEqual(RenderSetDB.profiles.Quality, existing)
 end
 
+function tests.profile_name_validation_accepts_names_and_rejects_invalid_values()
+    local addon = loadEngine({}, function()
+        return "1"
+    end, function()
+        return true
+    end)
+
+    local validName, validMessage = addon.ValidateProfileName("My Profile")
+    local emptyName, emptyMessage = addon.ValidateProfileName("")
+    local whitespaceName, whitespaceMessage = addon.ValidateProfileName(" \t ")
+    local numberName, numberMessage = addon.ValidateProfileName(42)
+
+    assertTrue(validName)
+    assertEqual(validMessage, nil)
+    assertFalse(emptyName)
+    assertEqual(emptyMessage, "Enter a profile name.")
+    assertFalse(whitespaceName)
+    assertEqual(whitespaceMessage, "Profile name cannot be only whitespace.")
+    assertFalse(numberName)
+    assertEqual(numberMessage, "Enter a profile name.")
+end
+
+function tests.rename_preserves_profile_data_and_removes_old_key()
+    local profile = { graphicsShadowQuality = "3", custom = "preserved" }
+    local addon = loadEngine({ Quality = profile }, function()
+        return "1"
+    end, function()
+        return true
+    end)
+
+    local result = addon.RenameProfile("Quality", "My Profile")
+    assertTrue(result.success)
+    assertTrue(result.renamed)
+    assertEqual(RenderSetDB.profiles["My Profile"], profile)
+    assertEqual(RenderSetDB.profiles.Quality, nil)
+end
+
+function tests.rename_duplicate_preserves_both_profiles()
+    local source = { graphicsShadowQuality = "3" }
+    local destination = { graphicsShadowQuality = "1" }
+    local addon = loadEngine({ Quality = source, Performance = destination }, function()
+        return "1"
+    end, function()
+        return true
+    end)
+
+    local result = addon.RenameProfile("Quality", "Performance")
+    assertFalse(result.success)
+    assertEqual(result.errors.profile, "destination profile already exists")
+    assertEqual(RenderSetDB.profiles.Quality, source)
+    assertEqual(RenderSetDB.profiles.Performance, destination)
+end
+
+function tests.rename_missing_source_fails_safely()
+    local addon = loadEngine({}, function()
+        return "1"
+    end, function()
+        return true
+    end)
+
+    local result = addon.RenameProfile("Missing", "New")
+    assertFalse(result.success)
+    assertEqual(result.errors.profile, "profile does not exist")
+end
+
+function tests.rename_same_name_is_harmless_noop()
+    local profile = { graphicsShadowQuality = "3" }
+    local addon = loadEngine({ Quality = profile }, function()
+        return "1"
+    end, function()
+        return true
+    end)
+
+    local result = addon.RenameProfile("Quality", "Quality")
+    assertTrue(result.success)
+    assertTrue(result.unchanged)
+    assertEqual(RenderSetDB.profiles.Quality, profile)
+end
+
+function tests.delete_removes_only_requested_profile()
+    local remaining = { graphicsShadowQuality = "1" }
+    local addon = loadEngine({ Quality = { graphicsShadowQuality = "3" }, Performance = remaining }, function()
+        return "1"
+    end, function()
+        return true
+    end)
+
+    local result = addon.DeleteProfile("Quality")
+    assertTrue(result.success)
+    assertTrue(result.deleted)
+    assertEqual(RenderSetDB.profiles.Quality, nil)
+    assertEqual(RenderSetDB.profiles.Performance, remaining)
+end
+
+function tests.delete_missing_profile_fails_safely()
+    local addon = loadEngine({}, function()
+        return "1"
+    end, function()
+        return true
+    end)
+
+    local result = addon.DeleteProfile("Missing")
+    assertFalse(result.success)
+    assertEqual(result.errors.profile, "profile does not exist")
+end
+
 local passed = 0
 for name, test in pairs(tests) do
     local succeeded, message = pcall(test)

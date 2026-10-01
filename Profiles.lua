@@ -18,8 +18,21 @@ local function newResult()
     }
 end
 
-local function isValidProfileName(name)
-    return type(name) == "string" and name ~= ""
+local function validateProfileName(name)
+    if type(name) ~= "string" or name == "" then
+        return false, "Enter a profile name.", "profile name must be a non-empty string"
+    end
+
+    if not name:find("%S") then
+        return false, "Profile name cannot be only whitespace.", "profile name cannot be only whitespace"
+    end
+
+    return true
+end
+
+function addon.ValidateProfileName(name)
+    local valid, message = validateProfileName(name)
+    return valid, message
 end
 
 local function getProfiles(result)
@@ -42,8 +55,9 @@ end
 function addon.CaptureProfile(name)
     local result = newResult()
 
-    if not isValidProfileName(name) then
-        result.errors.profile = "profile name must be a non-empty string"
+    local valid, _, errorMessage = validateProfileName(name)
+    if not valid then
+        result.errors.profile = errorMessage
         return result
     end
 
@@ -79,8 +93,9 @@ end
 function addon.ApplyProfile(name)
     local result = newResult()
 
-    if not isValidProfileName(name) then
-        result.errors.profile = "profile name must be a non-empty string"
+    local valid, _, errorMessage = validateProfileName(name)
+    if not valid then
+        result.errors.profile = errorMessage
         return result
     end
 
@@ -127,8 +142,89 @@ function addon.ApplyProfile(name)
     return result
 end
 
+function addon.RenameProfile(oldName, newName)
+    local result = {
+        success = false,
+        renamed = false,
+        unchanged = false,
+        errors = {},
+    }
+
+    local oldValid, _, oldError = validateProfileName(oldName)
+    if not oldValid then
+        result.errors.oldName = oldError
+        return result
+    end
+
+    local newValid, _, newError = validateProfileName(newName)
+    if not newValid then
+        result.errors.newName = newError
+        return result
+    end
+
+    local profiles = getProfiles(result)
+    if not profiles then
+        return result
+    end
+
+    local profile = profiles[oldName]
+    if type(profile) ~= "table" then
+        result.errors.profile = "profile does not exist"
+        return result
+    end
+
+    if oldName == newName then
+        result.success = true
+        result.unchanged = true
+        return result
+    end
+
+    if profiles[newName] ~= nil then
+        result.errors.profile = "destination profile already exists"
+        return result
+    end
+
+    profiles[newName] = profile
+    profiles[oldName] = nil
+    result.success = true
+    result.renamed = true
+    return result
+end
+
+function addon.DeleteProfile(name)
+    local result = {
+        success = false,
+        deleted = false,
+        errors = {},
+    }
+
+    local valid, _, errorMessage = validateProfileName(name)
+    if not valid then
+        result.errors.profile = errorMessage
+        return result
+    end
+
+    local profiles = getProfiles(result)
+    if not profiles then
+        return result
+    end
+
+    if type(profiles[name]) ~= "table" then
+        result.errors.profile = "profile does not exist"
+        return result
+    end
+
+    profiles[name] = nil
+    result.success = true
+    result.deleted = true
+    return result
+end
+
 -- Temporary manual test surface until a user-facing profile interface exists.
 _G.RenderSetTest = {
     CaptureProfile = addon.CaptureProfile,
     ApplyProfile = addon.ApplyProfile,
+    ValidateProfileName = addon.ValidateProfileName,
+    RenameProfile = addon.RenameProfile,
+    DeleteProfile = addon.DeleteProfile,
 }

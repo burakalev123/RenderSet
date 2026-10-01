@@ -5,7 +5,16 @@ addon.UI = UI
 
 local frame
 local selectedProfile
+local pendingDeleteProfile
 local profileButtons = {}
+local deleteButton
+
+local function cancelDeleteConfirmation()
+    pendingDeleteProfile = nil
+    if deleteButton then
+        deleteButton:SetText("Delete Selected")
+    end
+end
 
 local function countEntries(entries)
     local count = 0
@@ -61,9 +70,30 @@ function UI.SummarizeApply(profileName, result)
     return "Applied " .. profileName .. " — " .. appliedCount .. " settings."
 end
 
+function UI.SummarizeRename(result)
+    if result and result.unchanged then
+        return "Profile name unchanged."
+    elseif result and result.renamed then
+        return "Profile renamed."
+    elseif result and result.errors and result.errors.profile == "destination profile already exists" then
+        return "A profile with that name already exists."
+    end
+
+    return "Could not rename profile."
+end
+
+function UI.SummarizeDelete(result)
+    if result and result.deleted then
+        return "Profile deleted."
+    end
+
+    return "Could not delete profile."
+end
+
 function UI.SaveCurrent(name)
-    if type(name) ~= "string" or name == "" then
-        return nil, "Enter a profile name.", false
+    local valid, validationMessage = addon.ValidateProfileName(name)
+    if not valid then
+        return nil, validationMessage, false
     end
 
     local profiles = type(RenderSetDB) == "table" and RenderSetDB.profiles or nil
@@ -73,6 +103,57 @@ function UI.SaveCurrent(name)
 
     local result = addon.CaptureProfile(name)
     return result, UI.SummarizeCapture(result), result.saved == true
+end
+
+function UI.RenameSelection(profileName, newName)
+    if type(profileName) ~= "string" or profileName == "" then
+        return nil, "Select a profile first.", false
+    end
+
+    local valid, validationMessage = addon.ValidateProfileName(newName)
+    if not valid then
+        return nil, validationMessage, false
+    end
+
+    local result = addon.RenameProfile(profileName, newName)
+    if result.success then
+        selectedProfile = newName
+        cancelDeleteConfirmation()
+        UI.RefreshProfileList()
+    end
+
+    return result, UI.SummarizeRename(result), result.renamed or result.unchanged
+end
+
+function UI.DeleteSelection(profileName)
+    if type(profileName) ~= "string" or profileName == "" then
+        return nil, "Select a profile first.", false
+    end
+
+    local result = addon.DeleteProfile(profileName)
+    if result.success then
+        selectedProfile = nil
+        cancelDeleteConfirmation()
+        UI.RefreshProfileList()
+    end
+
+    return result, UI.SummarizeDelete(result), result.deleted == true
+end
+
+function UI.RequestDeleteSelection(profileName)
+    if type(profileName) ~= "string" or profileName == "" then
+        return nil, "Select a profile first.", false
+    end
+
+    if pendingDeleteProfile ~= profileName then
+        pendingDeleteProfile = profileName
+        if deleteButton then
+            deleteButton:SetText("Confirm Delete")
+        end
+        return nil, "Click Confirm Delete to remove " .. profileName .. ".", false
+    end
+
+    return UI.DeleteSelection(profileName)
 end
 
 function UI.ApplySelection(profileName)
@@ -106,19 +187,30 @@ local function updateSelection()
     end
 end
 
-function UI.RefreshProfileList()
-    if not frame then
-        return
-    end
+function UI.SelectProfile(profileName)
+    selectedProfile = profileName
+    cancelDeleteConfirmation()
+    updateSelection()
+end
 
+function UI.GetSelectedProfile()
+    return selectedProfile
+end
+
+function UI.RefreshProfileList()
     local names = UI.GetSortedProfileNames()
     local profiles = type(RenderSetDB) == "table" and RenderSetDB.profiles or nil
 
     if selectedProfile and (type(profiles) ~= "table" or type(profiles[selectedProfile]) ~= "table") then
         selectedProfile = nil
+        cancelDeleteConfirmation()
     end
     if not selectedProfile and #names > 0 then
         selectedProfile = names[1]
+    end
+
+    if not frame then
+        return
     end
 
     for index, profileName in ipairs(names) do
@@ -127,8 +219,7 @@ function UI.RefreshProfileList()
             button = CreateFrame("Button", nil, frame.profileContent, "UIPanelButtonTemplate")
             button:SetSize(300, 24)
             button:SetScript("OnClick", function(self)
-                selectedProfile = self.profileName
-                updateSelection()
+                UI.SelectProfile(self.profileName)
             end)
             profileButtons[index] = button
         end
@@ -177,7 +268,7 @@ end
 
 local function createFrame()
     frame = CreateFrame("Frame", "RenderSetFrame", UIParent)
-    frame:SetSize(420, 420)
+    frame:SetSize(420, 440)
     frame:SetPoint("CENTER")
     frame:SetFrameStrata("DIALOG")
     frame:SetClampedToScreen(true)
@@ -187,6 +278,7 @@ local function createFrame()
     frame:SetScript("OnDragStart", frame.StartMoving)
     frame:SetScript("OnDragStop", frame.StopMovingOrSizing)
     frame:SetScript("OnShow", UI.RefreshProfileList)
+    frame:SetScript("OnHide", cancelDeleteConfirmation)
 
     local background = frame:CreateTexture(nil, "BACKGROUND")
     background:SetAllPoints()
@@ -207,7 +299,7 @@ local function createFrame()
     local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate")
     scrollFrame:SetPoint("TOPLEFT", 24, -70)
     scrollFrame:SetPoint("TOPRIGHT", -48, -70)
-    scrollFrame:SetHeight(165)
+    scrollFrame:SetHeight(130)
 
     local profileContent = CreateFrame("Frame", nil, scrollFrame)
     profileContent:SetWidth(300)
@@ -216,17 +308,17 @@ local function createFrame()
     frame.profileContent = profileContent
 
     local selectedText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlight")
-    selectedText:SetPoint("TOPLEFT", 24, -248)
+    selectedText:SetPoint("TOPLEFT", 24, -210)
     selectedText:SetText("Selected: None")
     frame.selectedText = selectedText
 
     local newProfileLabel = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    newProfileLabel:SetPoint("TOPLEFT", 24, -282)
+    newProfileLabel:SetPoint("TOPLEFT", 24, -240)
     newProfileLabel:SetText("New profile")
 
     local nameInput = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
-    nameInput:SetSize(230, 30)
-    nameInput:SetPoint("TOPLEFT", 30, -302)
+    nameInput:SetSize(210, 30)
+    nameInput:SetPoint("TOPLEFT", 30, -258)
     nameInput:SetAutoFocus(false)
     nameInput:SetScript("OnEscapePressed", nameInput.ClearFocus)
     frame.nameInput = nameInput
@@ -252,18 +344,55 @@ local function createFrame()
         saveButton:Click()
     end)
 
+    local renameLabel = frame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    renameLabel:SetPoint("TOPLEFT", 24, -298)
+    renameLabel:SetText("Rename selected")
+
+    local renameInput = CreateFrame("EditBox", nil, frame, "InputBoxTemplate")
+    renameInput:SetSize(210, 30)
+    renameInput:SetPoint("TOPLEFT", 30, -316)
+    renameInput:SetAutoFocus(false)
+    renameInput:SetScript("OnEscapePressed", renameInput.ClearFocus)
+    frame.renameInput = renameInput
+
+    local renameButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    renameButton:SetSize(120, 24)
+    renameButton:SetPoint("LEFT", renameInput, "RIGHT", 10, 0)
+    renameButton:SetText("Rename")
+    renameButton:SetScript("OnClick", function()
+        local _, message, renamed = UI.RenameSelection(selectedProfile, renameInput:GetText())
+        setStatus(message)
+
+        if renamed then
+            renameInput:SetText("")
+        end
+    end)
+    renameInput:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+        renameButton:Click()
+    end)
+
     local applyButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
     applyButton:SetSize(150, 26)
-    applyButton:SetPoint("TOP", 0, -344)
+    applyButton:SetPoint("TOP", -80, -360)
     applyButton:SetText("Apply Selected")
     applyButton:SetScript("OnClick", function()
         local _, message = UI.ApplySelection(selectedProfile)
         setStatus(message)
     end)
 
+    deleteButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+    deleteButton:SetSize(150, 26)
+    deleteButton:SetPoint("TOP", 80, -360)
+    deleteButton:SetText("Delete Selected")
+    deleteButton:SetScript("OnClick", function()
+        local _, message = UI.RequestDeleteSelection(selectedProfile)
+        setStatus(message)
+    end)
+
     local statusText = frame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    statusText:SetPoint("TOPLEFT", 24, -382)
-    statusText:SetPoint("TOPRIGHT", -24, -382)
+    statusText:SetPoint("TOPLEFT", 24, -402)
+    statusText:SetPoint("TOPRIGHT", -24, -402)
     statusText:SetJustifyH("LEFT")
     statusText:SetText("Status: Ready.")
     frame.statusText = statusText
