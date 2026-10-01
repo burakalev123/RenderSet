@@ -66,6 +66,11 @@ function addon.CaptureProfile(name)
         return result
     end
 
+    if profiles[name] ~= nil then
+        result.errors.profile = "profile already exists"
+        return result
+    end
+
     local capturedProfile = {}
 
     for _, cvarName in ipairs(PROFILE_CVARS) do

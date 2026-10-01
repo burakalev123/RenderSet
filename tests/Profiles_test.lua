@@ -252,6 +252,27 @@ function tests.capture_complete_failure_preserves_existing_profile()
     assertEqual(RenderSetDB.profiles.Quality, existing)
 end
 
+function tests.capture_duplicate_rejects_without_reads_or_overwrite()
+    local existing = {
+        graphicsShadowQuality = "3",
+        graphicsProjectedTextures = "1",
+    }
+    local addon, calls = loadEngine({ Quality = existing }, function()
+        error("duplicate capture should not read CVars")
+    end, function()
+        return true
+    end)
+
+    local result = addon.CaptureProfile("Quality")
+    assertFalse(result.success)
+    assertFalse(result.saved)
+    assertEqual(result.errors.profile, "profile already exists")
+    assertEqual(#calls.reads, 0)
+    assertEqual(RenderSetDB.profiles.Quality, existing)
+    assertEqual(RenderSetDB.profiles.Quality.graphicsShadowQuality, "3")
+    assertEqual(RenderSetDB.profiles.Quality.graphicsProjectedTextures, "1")
+end
+
 function tests.profile_name_validation_accepts_names_and_rejects_invalid_values()
     local addon = loadEngine({}, function()
         return "1"
