@@ -6,13 +6,16 @@ Scope: discovery only; no addon implementation or in-game mutation
 ## Evidence labels
 
 - **CONFIRMED FROM CURRENT CLIENT/FILES** — directly observed in the current checkout or installed `_classic_beta_` client files.
+- **USER-PERFORMED IN-GAME VALIDATION** — result reported from the running WoW Forever client by the user; limited to the exact call and returned values recorded here.
 - **SUPPORTED BY DOCUMENTATION OR CODE** — supported by current-client binary strings or cited API documentation, but not exercised by this investigation.
 - **LIKELY BUT UNVERIFIED** — reasonable interpretation that still needs a Forever-client test.
 - **REQUIRES IN-GAME TEST** — cannot be established safely from static files.
 
 ## A. Current repository state
 
-The task-provided working path `/burakalev123/RenderSet` was not present on the machine. A read-only filesystem search found one RenderSet checkout, which was used as authoritative:
+The task-provided working path `/burakalev123/RenderSet` was not present on the machine. A read-only filesystem search found one RenderSet checkout, which was used as authoritative.
+
+Historical RS-1 starting state, preserved as evidence:
 
 - Checkout: `/Users/burakalev/Documents/GitHub/RenderSet`
 - Repository/remote: `burakalev123/RenderSet` / `https://github.com/burakalev123/RenderSet.git`
@@ -21,6 +24,14 @@ The task-provided working path `/burakalev123/RenderSet` was not present on the 
 - Status at inspection: clean; `main...origin/main`
 - Tracked file tree: `README.md` only
 - README content: title `RenderSet` and “Reliable graphics profile manager for World of Warcraft: Forever”
+
+Later review state before this correction:
+
+- Checkout: `/Users/burakalev/Documents/GitHub/RenderSet`
+- Branch: `main`
+- Commit: `358a2a2ebfc5dc20831049befffd18294c86e267` (`first commit`)
+- Status: clean; `main...origin/main`
+- Tracked file tree: `README.md`, `RS-1_DISCOVERY.md`
 
 No archive, ZIP, prior task output, or other addon repository was used.
 
@@ -35,12 +46,23 @@ No archive, ZIP, prior task output, or other addon repository was used.
 - Client binary contains the product name `World of Warcraft: Forever`.
 - `WTF/Config.wtf` contains `agentUID "wow_classic_beta"` and `engineSurveyPatch "16001"`.
 
+### USER-PERFORMED IN-GAME VALIDATION — 2026-10-01
+
+`GetBuildInfo()` returned:
+
+- version: `"1.60.1"`
+- build: `"70124"`
+- build date: `"Sep 29 2026"`
+- interface: `16001`
+- remaining returned string fields: empty
+
+This confirms the live Forever build/interface tuple `1.60.1.70124` / `16001` for the tested client session.
+
 ### SUPPORTED BY DOCUMENTATION OR CODE
 
-- Interface number `16001` is consistent with Forever `1.60.1`, but `GetBuildInfo()` was not run during this task. Treat the interface number as supported rather than a captured live return value.
 - The client is a beta/test flavor. Findings may change in later Forever builds.
 
-Exact installed and last-launched build **can** be established as `1.60.1.70124`. The server-side build and live `GetBuildInfo()` tuple were not captured.
+Exact installed, last-launched, and user-validated live build **can** be established as `1.60.1.70124`, with interface `16001`. This does not independently establish a server-side build.
 
 ## C. Available CVar/API surface
 
@@ -57,18 +79,38 @@ The current client executable contains generated usage text for:
 | `C_CVar.SetTempCVar`, `RegisterCVar`, bitfield APIs | Usage present | Not needed for RenderSet MVP profiles. |
 | `CVAR_UPDATE` | Event name present in binary | Potential refresh/verification signal; exact event arguments and Settings UI synchronization require an in-game test. |
 
-[Warcraft Wiki's Forever 1.60.1 pages](https://warcraft.wiki.gg/wiki/API_C_CVar.GetCVar) also document global `GetCVar`/`SetCVar` wrappers around `C_CVar`. The current client has a stored user macro that names global `SetCVar`, but this investigation did not execute it. Therefore:
+### USER-PERFORMED IN-GAME VALIDATION — 2026-10-01
+
+The following runtime types were observed:
+
+```text
+type(C_CVar) == "table"
+type(C_CVar.GetCVar) == "function"
+type(C_CVar.SetCVar) == "function"
+type(C_CVar.GetCVarInfo) == "function"
+```
+
+This confirms runtime presence of the namespaced table and these three methods. `C_CVar.SetCVar` was **not called**, so its existence must not be presented as successful write/apply evidence.
+
+For `graphicsShadowQuality` only:
+
+- `C_CVar.GetCVar("graphicsShadowQuality")` returned `"2"`.
+- `C_CVar.GetCVarInfo("graphicsShadowQuality")` returned current `"2"`, default `"3"`, `isStoredServerAccount=false`, `isStoredServerCharacter=false`, `isLockedFromUser=false`, `isSecure=false`, and `isReadOnly=false`.
+
+This confirms live read and metadata behavior only for `graphicsShadowQuality`. It does not confirm write, readback-after-write, `CVAR_UPDATE`, Settings UI synchronization, persistence, combat behavior, reload behavior, or restart behavior.
+
+[Warcraft Wiki's Forever 1.60.1 pages](https://warcraft.wiki.gg/wiki/API_C_CVar.GetCVar) also document global `GetCVar`/`SetCVar` wrappers around `C_CVar`. A stored user macro names global `SetCVar`, but the macro's existence is static text evidence only: it was not executed or used to establish API availability or behavior. Therefore:
 
 - Use `C_CVar.GetCVar`, `C_CVar.SetCVar`, and `C_CVar.GetCVarInfo` as the provisional canonical API.
 - Treat global `GetCVar` and `SetCVar` as compatibility wrappers that still require a one-time Forever test.
 - Do **not** assume global `GetCVarInfo` exists. Documentation describes the legacy alias as deprecated/removed on some branches; the namespaced form is directly evidenced here.
 - Do not assume Retail-only helpers. In particular, `C_CVar.DoesCVarExist` was not found in the current binary's exposed `C_CVar` method list.
 
-Documentation says secure CVars cannot be changed through `SetCVar` in combat and read-only CVars cannot be changed at all. No per-candidate secure/read-only flags were captured, so these remain per-CVar test items rather than claims about the graphics CVars.
+Documentation says secure CVars cannot be changed through `SetCVar` in combat and read-only CVars cannot be changed at all. Live flags were captured only for `graphicsShadowQuality`; although all its reported restriction flags were false, no write or combat test was performed. Every other candidate remains a per-CVar test item.
 
 ## D/E. Graphics CVar inventory and classification
 
-“Current” below means the value persisted in `_classic_beta_/WTF/Config.wtf` after the latest observed client session. It is not a live `GetCVar` result. “R/W” is provisional: read/write APIs exist, but per-CVar access and result were not exercised.
+“Current” below means the value persisted in `_classic_beta_/WTF/Config.wtf` after the latest observed client session, except where a live result is explicitly identified. “R/W” is provisional: the APIs exist, but only read and metadata retrieval for `graphicsShadowQuality` were exercised. No write was performed.
 
 ### Candidate UI-level settings
 
@@ -80,7 +122,7 @@ Documentation says secure CVars cannot be changed through `SetCVar` in combat an
 | SAFE | `graphicsViewDistance` | View distance | `7` | Integer UI level; exact range unknown | Expected / test | Likely immediate; test | Config + binary mapping to far/horizon/LOD CVars |
 | SAFE | `graphicsGroundClutter` | Ground clutter | `4` | Integer UI level; exact range unknown | Expected / test | Likely immediate; test | Config + binary mapping to ground-effect distance/density |
 | SAFE | `graphicsEnvironmentDetail` | Environment/object detail | `6` | Integer UI level; exact range unknown | Expected / test | Likely immediate; test | Config + binary mapping to object LOD CVars |
-| SAFE | `graphicsShadowQuality` | Shadow quality | `2` | Integer UI level; raw binary says `shadowMode` is `0-3` but wrapper range is unknown | Expected / test | Likely immediate; test | Config; console reports shadow mode changes |
+| SAFE | `graphicsShadowQuality` | Shadow quality | `2` persisted and live; default `3` | Integer UI level; raw binary says `shadowMode` is `0-3` but wrapper range is unknown | Read confirmed; write untested; live flags all false | Apply/reload behavior untested | Config + user-performed `GetCVar`/`GetCVarInfo`; console reports shadow mode changes |
 | SAFE | `graphicsLiquidDetail` | Legacy/non-PBR liquid detail | `2` | Integer UI level; exact range unknown | Expected / test | Likely immediate; test | Config + binary mapping to water/reflection/ripple CVars |
 | SAFE | `graphicsParticleDensity` | Particle density | `5` | Integer UI level; exact range unknown | Expected / test | Likely immediate; test | Config + binary mapping to particle density |
 | SAFE | `graphicsSSAO` | Screen-space ambient occlusion | `1` | Integer UI level; exact range unknown | Expected / test | Likely immediate; test | Config + binary mapping to `SSAO`; console reports mode `1` |
@@ -93,13 +135,13 @@ Documentation says secure CVars cannot be changed through `SetCVar` in combat an
 | UNCERTAIN | `giQuality` | Global-illumination quality | `1` | Integer quality level; range unknown | Expected / test | Unknown | Config + binary description; no `graphicsGIQuality` wrapper observed |
 | UNCERTAIN | `graphicsQuality` | Overall graphics preset selector | `7` | Integer preset; exact range unknown | Expected / test | May rewrite many individual settings | Binary calls it “save for Graphics Quality Selection”; current individual values are not proof of preset mapping |
 
-`SAFE` here means suitable **in principle** for allowlisted profile capture/apply because the current client groups these as UI graphics settings. It does not mean runtime-tested.
+`SAFE` means **provisional safe candidate** for a future allowlist because the current evidence identifies it as a UI graphics setting. It does not mean runtime-validated write safety. Even for `graphicsShadowQuality`, only reading and metadata retrieval were validated.
 
 ### Rendering, frame-rate, filtering, and anti-aliasing
 
 | Class | CVar(s) | Appears to control | Persisted value | Type/range evidence | R/W | Apply/reload evidence | Confidence/source |
 |---|---|---|---|---|---|---|---|
-| SAFE | `RenderScale` | Resolution/render scale | `1` | Numeric ratio; exact accepted range unknown | Expected / test | Client log shows render-size changes during a session without restart; direct addon change still needs test | Config + binary description + `gx.log` |
+| SAFE | `RenderScale` | Resolution/render scale | `1` | Numeric ratio; exact accepted range unknown | Expected / test | `gx.log` proves render-target size changes during a session, but not that `RenderScale` caused them; apply/restart behavior unknown | Config + binary description + `gx.log` |
 | SAFE | `vsync` | Vertical sync | `0` | Boolean-like; binary says on/off | Expected / test | Unknown; interaction with target FPS noted by client | Config + binary description |
 | SAFE | `useMaxFPS`, `maxFPS` | Enable/limit foreground FPS | `1`, `75` | Boolean + numeric; binary documents minimum `8` for limit | Expected / test | Likely immediate; test | Config + binary descriptions |
 | UNCERTAIN | `useMaxFPSBk`, `maxFPSBk` | Enable/limit background FPS | Not persisted | Boolean + numeric; binary documents minimum `8` | Expected / test | Unknown | Names/descriptions in current binary only |
@@ -148,7 +190,7 @@ Reason: these are hardware-, monitor-, OS-, driver-, or backend-specific; some a
 - The binary reports that resolution changes are pending until `UpdateWindow`.
 - `GxApi` and some device settings are pending `GxRestart`.
 - `gx.log` records actual `GxRestart` operations with reason `UserAction`; the log does not identify which specific UI field caused each restart.
-- `RenderScale`/render-size changes appear in `gx.log` during one client session without an intervening restart.
+- `gx.log` records render-target size changes during a client session. It does not identify the initiating CVar, so it does not prove that `RenderScale` changed or applies immediately.
 - Proper logout saved the observed values to `Config.wtf`; static inspection cannot prove when each value became effective.
 
 ### SUPPORTED BY DOCUMENTATION OR CODE
@@ -165,19 +207,18 @@ Reason: these are hardware-, monitor-, OS-, driver-, or backend-specific; some a
 
 ## H. Unknowns requiring actual in-game validation
 
-Before RS-3 implements capture/apply, run an instrumented Forever test that, for every proposed CVar:
+The live build tuple, namespaced API presence, and read/metadata behavior for `graphicsShadowQuality` are now confirmed. Before RS-3 implements capture/apply, the remaining validation is:
 
-1. Captures `GetBuildInfo()` and confirms interface `16001`.
-2. Calls `C_CVar.GetCVarInfo` out of combat and records existence, current/default value, secure, locked, and read-only flags.
-3. Writes a safe alternate value with `C_CVar.SetCVar`, records its return, immediately reads back, observes `CVAR_UPDATE`, then restores the original value.
-4. Repeats the write attempt in combat only where safe, to establish the actual restriction without guessing.
-5. Observes whether the world changes immediately and whether the Blizzard Graphics UI reflects it.
-6. Checks persistence across `/reload`, logout/login, and full client restart.
-7. Establishes accepted enums/ranges for each integer wrapper, anti-aliasing, filtering, render scale, resampling, target FPS, and raid settings.
-8. Tests ordering: preset then individual; individual then preset; target FPS with VSync/render scale; normal versus raid settings.
-9. Confirms that no graphics/device restart is requested for the proposed allowlist.
+1. For every other proposed CVar, call `C_CVar.GetCVar` and `C_CVar.GetCVarInfo` out of combat and record existence, current/default value, storage scope, locked, secure, and read-only flags.
+2. For every proposed CVar, including `graphicsShadowQuality`, write a safe alternate value with `C_CVar.SetCVar`, record its return, immediately read back, then restore the original value.
+3. Observe whether `CVAR_UPDATE` fires and whether the Blizzard Graphics UI reflects the write.
+4. Test combat restrictions only where safe, without inferring behavior from metadata alone.
+5. Observe whether the world changes immediately and whether graphics reload, UI reload, relog, client restart, or `GxRestart` is required.
+6. Check persistence across `/reload`, logout/login, and full client restart.
+7. Establish accepted enums/ranges for each integer wrapper, anti-aliasing, filtering, render scale, resampling, target FPS, and raid settings.
+8. Test ordering: preset then individual; individual then preset; target FPS with VSync/render scale; normal versus raid settings.
 
-No claim in this report should be read as an in-game `SetCVar` validation.
+No claim in this report should be read as an in-game `SetCVar` validation. All write/apply checks remain gated for RS-3.
 
 ## I. Recommended initial CVar scope for RS-3 — provisional
 
@@ -228,6 +269,7 @@ Local evidence inspected:
 - `/Applications/World of Warcraft/_classic_beta_/World of Warcraft Beta.app/Contents/MacOS/World of Warcraft` (static strings only)
 - `/Applications/World of Warcraft/_classic_beta_/WTF/Config.wtf`
 - `/Applications/World of Warcraft/_classic_beta_/WTF/SavedVariables/Blizzard_Console.lua`
+- `/Applications/World of Warcraft/_classic_beta_/WTF/Account/50823565#1/macros-cache.txt` (stored macro text only; not execution evidence)
 - `/Applications/World of Warcraft/_classic_beta_/Logs/gx.log`
 - `/Applications/World of Warcraft/_classic_beta_/Logs/Client.log`
 
@@ -240,7 +282,7 @@ Documentation used:
 
 ## CHANGES MADE
 
-- Added this discovery report only: `RS-1_DISCOVERY.md`.
+- Originally added this discovery report only; this correction updates `RS-1_DISCOVERY.md` with the 2026-10-01 user-performed in-game read-only validation and review clarifications.
 - No addon/runtime files or behavior were created or changed.
 
 ## AUTOMATED/STATIC VALIDATION
@@ -249,11 +291,19 @@ Documentation used:
 - Read installed flavor and application metadata.
 - Inspected the current persisted client config and relevant Blizzard-owned logs.
 - Searched the current client executable's static strings for the CVar API surface, graphics CVar names/descriptions, and restart/update semantics.
-- Re-checked repository status after creating this report.
+- Distinguished the historical RS-1 starting state from the later committed review state.
+- Re-checked repository status and diff after updating this report.
 
 ## IN-GAME VALIDATION
 
-None. WoW Forever was not launched or controlled, and no CVar was read or changed in-game during this task.
+User-performed read-only validation dated 2026-10-01 confirmed:
+
+- `GetBuildInfo()` returned version `1.60.1`, build `70124`, build date `Sep 29 2026`, interface `16001`, and empty remaining string fields.
+- `C_CVar` was a table; `GetCVar`, `SetCVar`, and `GetCVarInfo` were functions.
+- `GetCVar("graphicsShadowQuality")` returned `"2"`.
+- `GetCVarInfo("graphicsShadowQuality")` returned current `"2"`, default `"3"`, and false for both storage flags plus locked, secure, and read-only.
+
+No CVar write was performed. Write success/readback, events, UI synchronization, persistence, combat, reload, and restart behavior remain untested.
 
 ## NEXT STEP
 
