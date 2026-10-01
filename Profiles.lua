@@ -1,0 +1,134 @@
+local _, addon = ...
+
+local PROFILE_CVARS = {
+    "graphicsShadowQuality",
+    "graphicsProjectedTextures",
+    "graphicsParticleDensity",
+    "graphicsViewDistance",
+}
+
+local function newResult()
+    return {
+        success = false,
+        saved = false,
+        captured = {},
+        applied = {},
+        skipped = {},
+        errors = {},
+    }
+end
+
+local function isValidProfileName(name)
+    return type(name) == "string" and name ~= ""
+end
+
+local function getProfiles(result)
+    if type(RenderSetDB) ~= "table" or type(RenderSetDB.profiles) ~= "table" then
+        result.errors.profile = "database is not initialized"
+        return nil
+    end
+
+    return RenderSetDB.profiles
+end
+
+local function readCVar(cvarName)
+    return C_CVar.GetCVar(cvarName)
+end
+
+local function writeCVar(cvarName, value)
+    return C_CVar.SetCVar(cvarName, value)
+end
+
+function addon.CaptureProfile(name)
+    local result = newResult()
+
+    if not isValidProfileName(name) then
+        result.errors.profile = "profile name must be a non-empty string"
+        return result
+    end
+
+    local profiles = getProfiles(result)
+    if not profiles then
+        return result
+    end
+
+    local capturedProfile = {}
+
+    for _, cvarName in ipairs(PROFILE_CVARS) do
+        local readSucceeded, value = pcall(readCVar, cvarName)
+
+        if not readSucceeded then
+            result.errors[cvarName] = tostring(value)
+        elseif type(value) ~= "string" then
+            result.errors[cvarName] = "read did not return a string"
+        else
+            capturedProfile[cvarName] = value
+            result.captured[cvarName] = value
+        end
+    end
+
+    if next(capturedProfile) then
+        profiles[name] = capturedProfile
+        result.saved = true
+    end
+
+    result.success = result.saved and not next(result.errors)
+    return result
+end
+
+function addon.ApplyProfile(name)
+    local result = newResult()
+
+    if not isValidProfileName(name) then
+        result.errors.profile = "profile name must be a non-empty string"
+        return result
+    end
+
+    local profiles = getProfiles(result)
+    if not profiles then
+        return result
+    end
+
+    local profile = profiles[name]
+    if type(profile) ~= "table" then
+        result.errors.profile = "profile does not exist"
+        return result
+    end
+
+    for _, cvarName in ipairs(PROFILE_CVARS) do
+        local value = profile[cvarName]
+
+        if value == nil then
+            result.skipped[cvarName] = "profile value is missing"
+        elseif type(value) ~= "string" then
+            result.errors[cvarName] = "stored value is not a string"
+        else
+            local writeSucceeded, accepted = pcall(writeCVar, cvarName, value)
+
+            if not writeSucceeded then
+                result.errors[cvarName] = tostring(accepted)
+            elseif accepted ~= true then
+                result.errors[cvarName] = "write was rejected"
+            else
+                local readSucceeded, readback = pcall(readCVar, cvarName)
+
+                if not readSucceeded then
+                    result.errors[cvarName] = tostring(readback)
+                elseif readback ~= value then
+                    result.errors[cvarName] = "readback did not match stored value"
+                else
+                    result.applied[cvarName] = readback
+                end
+            end
+        end
+    end
+
+    result.success = not next(result.errors)
+    return result
+end
+
+-- Temporary manual test surface until a user-facing profile interface exists.
+_G.RenderSetTest = {
+    CaptureProfile = addon.CaptureProfile,
+    ApplyProfile = addon.ApplyProfile,
+}
