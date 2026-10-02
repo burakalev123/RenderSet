@@ -4,6 +4,13 @@ local PROFILE_CVARS = {
     "graphicsShadowQuality",
     "graphicsProjectedTextures",
     "graphicsParticleDensity",
+    "graphicsLiquidDetail",
+    "graphicsSSAO",
+    "graphicsDepthEffects",
+    "graphicsComputeEffects",
+    "graphicsOutlineMode",
+    "graphicsGroundClutter",
+    "graphicsEnvironmentDetail",
     "graphicsViewDistance",
 }
 

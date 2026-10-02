@@ -1,12 +1,12 @@
 # RenderSet — WoW Forever Graphics Coverage Audit
 
 Date: 2026-10-02 (Europe/Amsterdam)
-Task: research/discovery only; no runtime allowlist or production behavior change
+Task: graphics coverage audit, updated with completed build-70170 validation
 
 ## Executive conclusion
 
-RenderSet 0.1.0 should continue to profile only its four already accepted CVars
-until targeted in-game validation expands the evidence boundary. This audit
+RenderSet 0.1.0 shipped with four accepted CVars. Burak subsequently completed
+targeted in-game validation for seven additional base quality wrappers. This audit
 identified 64 user-facing or plausibly user-facing graphics controls/control
 families in the current Forever client and mapped 63 of them to a CVar or CVar
 pair/family. The unresolved mapping is a dedicated refresh-rate control on this
@@ -15,8 +15,8 @@ user CVar was established.
 
 The classification across the 66 audit rows below is:
 
-- **VERIFIED SAFE:** 4
-- **SAFE CANDIDATE:** 15
+- **VERIFIED SAFE:** 11
+- **SAFE CANDIDATE:** 8
 - **NEEDS RUNTIME VALIDATION:** 36
 - **EXCLUDE:** 11
 
@@ -37,9 +37,16 @@ to make the intentional RenderSet boundary explicit.
   - `graphicsShadowQuality`
   - `graphicsProjectedTextures`
   - `graphicsParticleDensity`
+  - `graphicsLiquidDetail`
+  - `graphicsSSAO`
+  - `graphicsDepthEffects`
+  - `graphicsComputeEffects`
+  - `graphicsOutlineMode`
+  - `graphicsGroundClutter`
+  - `graphicsEnvironmentDetail`
   - `graphicsViewDistance`
 
-No production file, schema, or allowlist was changed by this audit.
+The seven additions retain the existing profile format and schema version 1.
 
 ## 2. Client and evidence baseline
 
@@ -88,10 +95,10 @@ C_CVar.SetCVar(name[, value]) -> success
 
 Forever's `GetCVarInfo` signature does **not** expose help text, category,
 numeric range, or enum labels. RS-1 recorded live metadata only for
-`graphicsShadowQuality`. The four current RenderSet CVars are nevertheless
-VERIFIED SAFE because Burak later completed the full set/readback/Blizzard UI/
-restore acceptance path for all four. No equivalent runtime evidence exists for
-additional CVars.
+`graphicsShadowQuality`. Eleven RenderSet CVars are VERIFIED SAFE because Burak
+completed the full set/readback/Blizzard UI/restore acceptance path for the
+original four and the seven later additions. No equivalent runtime evidence
+exists for the remaining candidates.
 
 ## 3. Complete practical inventory
 
@@ -107,16 +114,16 @@ are intentionally left unknown unless current evidence states them.
 | 3 | Spell Density | `graphicsSpellDensity` → `spellClutter` | Binary map; Config `0`; raid value `1`; local optimizer writes `0` | Integer enum; exact labels unknown | SAFE CANDIDATE | Base wrapper appears independent; alternate value needs proof | Metadata first; then UI-selected alternate |
 | 4 | Projected Textures | `graphicsProjectedTextures` → `projectedTextures` | RS-8 set/readback/UI/restore; Config `1` | Boolean-like `0/1` | VERIFIED SAFE | Accepted RenderSet 0.1.0 behavior | None for current build |
 | 5 | View Distance | `graphicsViewDistance` → multiple distance/LOD CVars | RS-8 set/readback/UI/restore; Config `7` | Integer quality enum; mapping unknown | VERIFIED SAFE | High-level wrapper fans out to derived values | None for current build |
-| 6 | Ground Clutter | `graphicsGroundClutter` → `groundEffectDist`, `groundEffectDensity` | Binary map; Config `4`; local optimizer writes `0` | Integer quality enum | SAFE CANDIDATE | One UI control writes multiple derived children | Test wrapper/UI/readback/restore |
-| 7 | Environment Detail | `graphicsEnvironmentDetail` → object LOD CVars | Binary map; Config `6`; local optimizer writes `0` | Integer quality enum | SAFE CANDIDATE | One UI control writes multiple derived children | Test wrapper/UI/readback/restore |
+| 6 | Ground Clutter | `graphicsGroundClutter` → `groundEffectDist`, `groundEffectDensity` | Burak build-70170 set/readback/UI/restore; Config `4` | Integer quality enum | VERIFIED SAFE | One UI control writes multiple derived children | None for current build |
+| 7 | Environment Detail | `graphicsEnvironmentDetail` → object LOD CVars | Burak build-70170 set/readback/UI/restore; Config `6` | Integer quality enum | VERIFIED SAFE | One UI control writes multiple derived children | None for current build |
 | 8 | Shadow Quality | `graphicsShadowQuality` → shadow family | RS-8 set/readback/UI/restore; Config `3`; prior live metadata unrestricted | Integer quality enum; low-level `shadowMode` says `0-3` but wrapper range not proven | VERIFIED SAFE | Store wrapper, never low-level children | None for current build |
-| 9 | Liquid Detail | `graphicsLiquidDetail` → water/reflection/ripple family | Binary map; Config `2`; local optimizer writes `0` | Integer quality enum | SAFE CANDIDATE | Immediate render/UI behavior still needs acceptance | Batch 1 |
+| 9 | Liquid Detail | `graphicsLiquidDetail` → water/reflection/ripple family | Burak build-70170 set/readback/UI/restore; Config `2` | Integer quality enum | VERIFIED SAFE | High-level wrapper passed the full profile-safety path | None for current build |
 | 10 | PBR Liquid Detail | `graphicsPBRLiquidDetail` → `pbrLiquidDetail` | Binary says PBR water quality; Config `2` | Integer quality enum; range unknown | NEEDS RUNTIME VALIDATION | Forever-specific/newer path; relationship to Liquid Detail unclear | Metadata and UI dependency first |
 | 11 | Particle Density | `graphicsParticleDensity` → particle density family | RS-8 set/readback/UI/restore; Config `5` | Integer quality enum | VERIFIED SAFE | Accepted RenderSet 0.1.0 behavior | None for current build |
-| 12 | SSAO | `graphicsSSAO` → `SSAO` | Binary map; Config `1`; local optimizer writes `0` | Integer mode; `0` is used as disabled locally | SAFE CANDIDATE | Enum labels beyond off are unknown | Batch 1 |
-| 13 | Depth Effects | `graphicsDepthEffects` → sun shafts/refraction/depth opacity | Binary map; Config `1`; local optimizer writes `0` | Integer quality enum | SAFE CANDIDATE | One wrapper fans out to several effects | Batch 1 |
-| 14 | Compute Effects | `graphicsComputeEffects` → volume fog/particulates/clustered shading | Binary map; Config `2`; local optimizer writes `0` | Integer quality enum | SAFE CANDIDATE | Potential multi-effect refresh cost; no device restart evidence | Batch 1 |
-| 15 | Outline Mode | `graphicsOutlineMode` → `OutlineEngineMode` | Binary map; Config `1`; local optimizer and DialogueUI use wrapper | Integer mode; local code uses `0` as disabled | SAFE CANDIDATE | Other add-ons may temporarily own this CVar | Batch 1 plus add-on-interaction observation |
+| 12 | SSAO | `graphicsSSAO` → `SSAO` | Burak build-70170 set/readback/UI/restore; Config `1` | Integer mode; `0` is used as disabled locally | VERIFIED SAFE | Enum labels beyond off remain undocumented | None for current build |
+| 13 | Depth Effects | `graphicsDepthEffects` → sun shafts/refraction/depth opacity | Burak build-70170 set/readback/UI/restore; Config `1` | Integer quality enum | VERIFIED SAFE | One wrapper fans out to several effects | None for current build |
+| 14 | Compute Effects | `graphicsComputeEffects` → volume fog/particulates/clustered shading | Burak build-70170 set/readback/UI/restore; Config `2` | Integer quality enum | VERIFIED SAFE | Multi-effect wrapper passed the full profile-safety path | None for current build |
+| 15 | Outline Mode | `graphicsOutlineMode` → `OutlineEngineMode` | Burak build-70170 set/readback/UI/restore; Config `1`; no add-on interference observed | Integer mode; local code uses `0` as disabled | VERIFIED SAFE | Recheck if another add-on later takes ownership | None for current build |
 | 16 | Light Mode | `graphicsLightMode` | Binary name; Config `0` | Integer enum; meaning/range unknown | NEEDS RUNTIME VALIDATION | Exact UI label and visual semantics not recovered | Metadata/UI inspection before write |
 | 17 | Bloom Intensity | `graphicsBloomUserMult` → `bloomUserMult` | Binary description; Config `1` | Numeric multiplier; valid range unknown | NEEDS RUNTIME VALIDATION | Exact slider range and color pipeline behavior unknown | Metadata/UI inspection before write |
 | 18 | Global Illumination Quality | `giQuality` | Binary description; Config `1` | Integer quality enum | NEEDS RUNTIME VALIDATION | No `graphicsGIQuality` wrapper observed; performance/feature dependency unknown | Metadata/UI inspection before write |
@@ -173,13 +180,20 @@ are intentionally left unknown unless current evidence states them.
 
 ### VERIFIED SAFE
 
-The following four CVars alone have accepted build-70170 evidence for the full
+The following eleven CVars have accepted build-70170 evidence for the full
 RenderSet contract: write, immediate readback, Blizzard Graphics UI reflection,
 and restore of the original value.
 
 - `graphicsShadowQuality`
 - `graphicsProjectedTextures`
 - `graphicsParticleDensity`
+- `graphicsLiquidDetail`
+- `graphicsSSAO`
+- `graphicsDepthEffects`
+- `graphicsComputeEffects`
+- `graphicsOutlineMode`
+- `graphicsGroundClutter`
+- `graphicsEnvironmentDetail`
 - `graphicsViewDistance`
 
 ### SAFE CANDIDATES
@@ -187,10 +201,7 @@ and restore of the original value.
 These have strong current-client evidence as reversible, user-controlled,
 non-device settings, but are not yet eligible for the production allowlist:
 
-- Quality wrappers: `graphicsTextureResolution`, `graphicsSpellDensity`,
-  `graphicsGroundClutter`, `graphicsEnvironmentDetail`,
-  `graphicsLiquidDetail`, `graphicsSSAO`, `graphicsDepthEffects`,
-  `graphicsComputeEffects`, `graphicsOutlineMode`
+- Quality wrappers: `graphicsTextureResolution`, `graphicsSpellDensity`
 - Image processing: `ResampleAlwaysSharpen`
 - Frame caps: `useMaxFPS` + `maxFPS`, `useMaxFPSBk` + `maxFPSBk`
 - Calibration: `Brightness`, `Contrast`, `Gamma`
@@ -276,12 +287,14 @@ Render scaling is kept separate from display/device controls: it may eventually
 be profile-worthy, but only after a dedicated reversible test covering resampler
 coupling and Blizzard UI synchronization.
 
-## 8. High-value first runtime validation batch
+## 8. Completed first runtime validation batch
 
-The first pass is intentionally limited to seven base quality wrappers whose
+The first pass was intentionally limited to seven base quality wrappers whose
 current values are nonzero and whose alternate `0` value is used by the installed
 EllesmereUI optimizer with backup/restore logic. That source is static third-party
-evidence, so Burak's test is still required.
+evidence. Burak completed the test on build 70170: all seven passed write,
+immediate readback, Blizzard UI reflection, and original-value restore. No
+`graphicsOutlineMode` add-on interference was observed.
 
 Test out of combat, one CVar at a time. Keep Blizzard Graphics Settings open or
 reopen it after each write. Restore each original value before moving on.
@@ -346,8 +359,8 @@ has evidence for all of the following on the target Forever build:
 7. No reload/restart/device recovery is required unless explicitly designed.
 8. Linked/gated CVars have a defined atomic capture/apply contract.
 
-This audit does not authorize an allowlist change. The next task must use Burak's
-recorded runtime results and admit only settings that cross this gate.
+The seven completed first-batch CVars crossed this gate. Remaining candidates
+still require their own recorded runtime results before any later allowlist change.
 
 ## 10. Sources inspected
 

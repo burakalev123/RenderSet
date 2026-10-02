@@ -57,6 +57,20 @@ Version 0.1.0 stores only these allowlisted CVars:
 - `graphicsParticleDensity`
 - `graphicsViewDistance`
 
+Current development builds after 0.1.0 expand the verified allowlist to eleven
+CVars by adding:
+
+- `graphicsLiquidDetail`
+- `graphicsSSAO`
+- `graphicsDepthEffects`
+- `graphicsComputeEffects`
+- `graphicsOutlineMode`
+- `graphicsGroundClutter`
+- `graphicsEnvironmentDetail`
+
+This development expansion is not part of the published
+`RenderSet-0.1.0.zip` artifact.
+
 Saved profiles persist through `/reload`, logout, and login. The current UI
 selection is intentionally session-local and is not stored in `RenderSetDB`.
 

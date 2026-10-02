@@ -24,7 +24,10 @@ local applyResult = {
     success = true,
     saved = false,
     captured = {},
-    applied = { a = "1", b = "2", c = "3", d = "4" },
+    applied = {
+        a = "1", b = "2", c = "3", d = "4", e = "5", f = "6",
+        g = "7", h = "8", i = "9", j = "10", k = "11",
+    },
     skipped = {},
     errors = {},
 }
@@ -151,7 +154,7 @@ function tests.apply_delegates_to_engine()
     assertEqual(result, applyResult)
     assertEqual(#applyCalls, 1)
     assertEqual(applyCalls[1], "Quality")
-    assertEqual(message, "Applied Quality — 4 settings.")
+    assertEqual(message, "Applied Quality — 11 settings.")
 end
 
 function tests.apply_without_selection_does_not_call_engine()
@@ -224,7 +227,10 @@ end
 
 function tests.result_summaries_cover_success_skips_and_errors()
     local full = addon.UI.SummarizeApply("A", {
-        applied = { a = "1", b = "2", c = "3", d = "4" },
+        applied = {
+            a = "1", b = "2", c = "3", d = "4", e = "5", f = "6",
+            g = "7", h = "8", i = "9", j = "10", k = "11",
+        },
         skipped = {},
         errors = {},
     })
@@ -239,7 +245,7 @@ function tests.result_summaries_cover_success_skips_and_errors()
         errors = { d = "failed" },
     })
 
-    assertEqual(full, "Applied A — 4 settings.")
+    assertEqual(full, "Applied A — 11 settings.")
     assertContains(skipped, "3 applied, 1 skipped")
     assertContains(failed, "1 error")
 end

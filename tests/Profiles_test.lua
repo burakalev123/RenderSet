@@ -1,9 +1,37 @@
-local EXPECTED_CVARS = {
-    graphicsShadowQuality = true,
-    graphicsProjectedTextures = true,
-    graphicsParticleDensity = true,
-    graphicsViewDistance = true,
+local EXPECTED_CVAR_NAMES = {
+    "graphicsShadowQuality",
+    "graphicsProjectedTextures",
+    "graphicsParticleDensity",
+    "graphicsLiquidDetail",
+    "graphicsSSAO",
+    "graphicsDepthEffects",
+    "graphicsComputeEffects",
+    "graphicsOutlineMode",
+    "graphicsGroundClutter",
+    "graphicsEnvironmentDetail",
+    "graphicsViewDistance",
 }
+
+local EXPECTED_CVARS = {}
+for _, cvarName in ipairs(EXPECTED_CVAR_NAMES) do
+    EXPECTED_CVARS[cvarName] = true
+end
+
+local function fullProfileValues()
+    return {
+        graphicsShadowQuality = "3",
+        graphicsProjectedTextures = "1",
+        graphicsParticleDensity = "5",
+        graphicsLiquidDetail = "2",
+        graphicsSSAO = "1",
+        graphicsDepthEffects = "1",
+        graphicsComputeEffects = "2",
+        graphicsOutlineMode = "1",
+        graphicsGroundClutter = "4",
+        graphicsEnvironmentDetail = "6",
+        graphicsViewDistance = "7",
+    }
+end
 
 local function fail(message)
     error(message, 2)
@@ -66,12 +94,7 @@ end
 local tests = {}
 
 function tests.capture_success()
-    local values = {
-        graphicsShadowQuality = "3",
-        graphicsProjectedTextures = "1",
-        graphicsParticleDensity = "5",
-        graphicsViewDistance = "7",
-    }
+    local values = fullProfileValues()
     local addon = loadEngine({}, function(cvarName)
         return values[cvarName]
     end, function()
@@ -81,7 +104,7 @@ function tests.capture_success()
     local result = addon.CaptureProfile("Quality")
     assertTrue(result.success)
     assertTrue(result.saved)
-    assertEqual(countKeys(RenderSetDB.profiles.Quality), 4)
+    assertEqual(countKeys(RenderSetDB.profiles.Quality), 11)
     for cvarName, expected in pairs(values) do
         assertEqual(RenderSetDB.profiles.Quality[cvarName], expected)
     end
@@ -96,7 +119,7 @@ function tests.capture_allowlist_only()
 
     addon.CaptureProfile("OnlyAllowed")
     local profile = RenderSetDB.profiles.OnlyAllowed
-    assertEqual(countKeys(profile), 4)
+    assertEqual(countKeys(profile), 11)
     for cvarName in pairs(profile) do
         assertTrue(EXPECTED_CVARS[cvarName], "captured unexpected CVar " .. cvarName)
     end
@@ -105,7 +128,7 @@ end
 
 function tests.capture_continues_after_read_failure()
     local addon = loadEngine({}, function(cvarName)
-        if cvarName == "graphicsProjectedTextures" then
+        if cvarName == "graphicsLiquidDetail" then
             error("read failed")
         end
         return "1"
@@ -116,18 +139,13 @@ function tests.capture_continues_after_read_failure()
     local result = addon.CaptureProfile("Partial")
     assertFalse(result.success)
     assertTrue(result.saved)
-    assertEqual(countKeys(RenderSetDB.profiles.Partial), 3)
-    assertEqual(RenderSetDB.profiles.Partial.graphicsProjectedTextures, nil)
-    assertTrue(type(result.errors.graphicsProjectedTextures) == "string")
+    assertEqual(countKeys(RenderSetDB.profiles.Partial), 10)
+    assertEqual(RenderSetDB.profiles.Partial.graphicsLiquidDetail, nil)
+    assertTrue(type(result.errors.graphicsLiquidDetail) == "string")
 end
 
 function tests.apply_success()
-    local values = {
-        graphicsShadowQuality = "2",
-        graphicsProjectedTextures = "1",
-        graphicsParticleDensity = "4",
-        graphicsViewDistance = "6",
-    }
+    local values = fullProfileValues()
     local current = {}
     local addon, calls = loadEngine({ Quality = values }, function(cvarName)
         return current[cvarName]
@@ -138,21 +156,16 @@ function tests.apply_success()
 
     local result = addon.ApplyProfile("Quality")
     assertTrue(result.success)
-    assertEqual(#calls.writes, 4)
-    assertEqual(countKeys(result.applied), 4)
+    assertEqual(#calls.writes, 11)
+    assertEqual(countKeys(result.applied), 11)
     for cvarName, expected in pairs(values) do
         assertEqual(result.applied[cvarName], expected)
     end
 end
 
 function tests.apply_allowlist_ignores_unknown_stored_key()
-    local profile = {
-        graphicsShadowQuality = "2",
-        graphicsProjectedTextures = "1",
-        graphicsParticleDensity = "4",
-        graphicsViewDistance = "6",
-        someOldCVar = "123",
-    }
+    local profile = fullProfileValues()
+    profile.someOldCVar = "123"
     local current = {}
     local addon, calls = loadEngine({ OldProfile = profile }, function(cvarName)
         return current[cvarName]
@@ -163,8 +176,8 @@ function tests.apply_allowlist_ignores_unknown_stored_key()
 
     local result = addon.ApplyProfile("OldProfile")
     assertTrue(result.success)
-    assertEqual(#calls.writes, 4)
-    assertEqual(countKeys(result.applied), 4)
+    assertEqual(#calls.writes, 11)
+    assertEqual(countKeys(result.applied), 11)
     for _, write in ipairs(calls.writes) do
         assertTrue(EXPECTED_CVARS[write[1]], "applied unexpected CVar " .. write[1])
     end
@@ -172,17 +185,12 @@ function tests.apply_allowlist_ignores_unknown_stored_key()
 end
 
 function tests.apply_continues_after_write_failure()
-    local values = {
-        graphicsShadowQuality = "2",
-        graphicsProjectedTextures = "1",
-        graphicsParticleDensity = "4",
-        graphicsViewDistance = "6",
-    }
+    local values = fullProfileValues()
     local current = {}
     local addon, calls = loadEngine({ Mixed = values }, function(cvarName)
         return current[cvarName]
     end, function(cvarName, value)
-        if cvarName == "graphicsProjectedTextures" then
+        if cvarName == "graphicsComputeEffects" then
             return false
         end
         current[cvarName] = value
@@ -191,35 +199,30 @@ function tests.apply_continues_after_write_failure()
 
     local result = addon.ApplyProfile("Mixed")
     assertFalse(result.success)
-    assertEqual(#calls.writes, 4)
-    assertEqual(countKeys(result.applied), 3)
-    assertEqual(result.errors.graphicsProjectedTextures, "write was rejected")
-    assertEqual(result.applied.graphicsViewDistance, "6")
+    assertEqual(#calls.writes, 11)
+    assertEqual(countKeys(result.applied), 10)
+    assertEqual(result.errors.graphicsComputeEffects, "write was rejected")
+    assertEqual(result.applied.graphicsViewDistance, "7")
 end
 
 function tests.apply_reports_readback_mismatch()
-    local addon = loadEngine({ Mismatch = { graphicsParticleDensity = "5" } }, function()
-        return "4"
+    local addon = loadEngine({ Mismatch = { graphicsOutlineMode = "1" } }, function()
+        return "0"
     end, function()
         return true
     end)
 
     local result = addon.ApplyProfile("Mismatch")
     assertFalse(result.success)
-    assertEqual(result.applied.graphicsParticleDensity, nil)
-    assertEqual(result.errors.graphicsParticleDensity, "readback did not match stored value")
+    assertEqual(result.applied.graphicsOutlineMode, nil)
+    assertEqual(result.errors.graphicsOutlineMode, "readback did not match stored value")
 end
 
 function tests.apply_continues_after_single_readback_failure()
-    local values = {
-        graphicsShadowQuality = "2",
-        graphicsProjectedTextures = "1",
-        graphicsParticleDensity = "4",
-        graphicsViewDistance = "6",
-    }
+    local values = fullProfileValues()
     local current = {}
     local addon, calls = loadEngine({ MixedReadback = values }, function(cvarName)
-        if cvarName == "graphicsParticleDensity" then
+        if cvarName == "graphicsEnvironmentDetail" then
             error("readback failed")
         end
         return current[cvarName]
@@ -230,27 +233,42 @@ function tests.apply_continues_after_single_readback_failure()
 
     local result = addon.ApplyProfile("MixedReadback")
     assertFalse(result.success)
-    assertEqual(#calls.writes, 4)
-    assertEqual(countKeys(result.applied), 3)
-    assertTrue(type(result.errors.graphicsParticleDensity) == "string")
-    assertEqual(result.applied.graphicsViewDistance, "6")
+    assertEqual(#calls.writes, 11)
+    assertEqual(countKeys(result.applied), 10)
+    assertTrue(type(result.errors.graphicsEnvironmentDetail) == "string")
+    assertEqual(result.applied.graphicsViewDistance, "7")
 end
 
-function tests.apply_skips_missing_value()
+function tests.apply_old_four_cvar_profile_skips_new_values_without_mutation()
+    local profile = {
+        graphicsShadowQuality = "2",
+        graphicsProjectedTextures = "1",
+        graphicsParticleDensity = "4",
+        graphicsViewDistance = "6",
+    }
     local current = {}
-    local addon, calls = loadEngine({ Partial = { graphicsShadowQuality = "2" } }, function(cvarName)
+    local addon, calls = loadEngine({ Legacy = profile }, function(cvarName)
         return current[cvarName]
     end, function(cvarName, value)
         current[cvarName] = value
         return true
     end)
 
-    local result = addon.ApplyProfile("Partial")
+    local result = addon.ApplyProfile("Legacy")
     assertTrue(result.success)
-    assertEqual(#calls.writes, 1)
-    assertEqual(result.skipped.graphicsProjectedTextures, "profile value is missing")
-    assertEqual(result.skipped.graphicsParticleDensity, "profile value is missing")
-    assertEqual(result.skipped.graphicsViewDistance, "profile value is missing")
+    assertEqual(#calls.writes, 4)
+    assertEqual(countKeys(result.applied), 4)
+    assertEqual(countKeys(result.skipped), 7)
+    assertEqual(next(result.errors), nil)
+    assertEqual(result.skipped.graphicsLiquidDetail, "profile value is missing")
+    assertEqual(result.skipped.graphicsSSAO, "profile value is missing")
+    assertEqual(result.skipped.graphicsDepthEffects, "profile value is missing")
+    assertEqual(result.skipped.graphicsComputeEffects, "profile value is missing")
+    assertEqual(result.skipped.graphicsOutlineMode, "profile value is missing")
+    assertEqual(result.skipped.graphicsGroundClutter, "profile value is missing")
+    assertEqual(result.skipped.graphicsEnvironmentDetail, "profile value is missing")
+    assertEqual(RenderSetDB.profiles.Legacy, profile)
+    assertEqual(countKeys(profile), 4)
 end
 
 function tests.apply_rejects_invalid_or_missing_profile()
