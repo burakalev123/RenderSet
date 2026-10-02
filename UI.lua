@@ -13,19 +13,22 @@ local deleteButton
 
 local LAYOUT = {
     width = 568,
-    height = 360,
+    height = 328,
     margin = 16,
     gap = 12,
-    headerHeight = 52,
-    bodyTop = 64,
-    bodyHeight = 232,
+    headerHeight = 48,
+    bodyTop = 58,
+    bodyHeight = 208,
     leftWidth = 202,
     rightWidth = 322,
     profileRowWidth = 164,
+    profileViewportHeight = 177,
     rowHeight = 29,
     buttonHeight = 28,
-    footerHeight = 55,
+    footerHeight = 49,
 }
+
+local FONT_PATH = "Fonts\\ARIALN.TTF"
 
 local COLORS = {
     window = { 0.022, 0.025, 0.03, 0.99 },
@@ -51,6 +54,13 @@ end
 
 local function setTextColor(fontString, color)
     fontString:SetTextColor(color[1], color[2], color[3])
+end
+
+local function applyFont(fontRegion, size, fallback)
+    local loaded, result = pcall(fontRegion.SetFont, fontRegion, FONT_PATH, size, "")
+    if (not loaded or result == false) and fallback then
+        fontRegion:SetFontObject(fallback)
+    end
 end
 
 local function countEntries(entries)
@@ -346,6 +356,7 @@ local function createProfileButton(parent)
     nameText:SetJustifyH("LEFT")
     nameText:SetJustifyV("MIDDLE")
     nameText:SetWordWrap(false)
+    applyFont(nameText, 13, GameFontHighlight)
     button.nameText = nameText
 
     button:SetScript("OnEnter", function(self)
@@ -402,7 +413,13 @@ function UI.RefreshProfileList()
         profileButtons[index].profileName = nil
     end
 
-    frame.profileContent:SetHeight(math.max(1, #names * (LAYOUT.rowHeight + 2)))
+    local contentHeight = math.max(1, #names * (LAYOUT.rowHeight + 2))
+    frame.profileContent:SetHeight(contentHeight)
+    frame.profileScroll.maxScroll = math.max(0, contentHeight - LAYOUT.profileViewportHeight)
+    if frame.profileScroll:GetVerticalScroll() > frame.profileScroll.maxScroll then
+        frame.profileScroll:SetVerticalScroll(frame.profileScroll.maxScroll)
+    end
+    frame.UpdateScrollbar()
     frame.emptyText:SetShown(#names == 0)
     if #names == 1 then
         frame.profileCountText:SetText("1 profile")
@@ -467,6 +484,7 @@ local function createActionButton(parent, text, kind)
     label:SetPoint("CENTER", 0, 0)
     label:SetJustifyH("CENTER")
     label:SetJustifyV("MIDDLE")
+    applyFont(label, 12, GameFontHighlightSmall)
     button:SetFontString(label)
     button.label = label
     button:SetText(text)
@@ -552,17 +570,49 @@ local function createFrame()
     setTextureColor(headerAccent, COLORS.accent)
 
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOPLEFT", 16, -9)
+    title:SetPoint("TOPLEFT", 16, -7)
     title:SetText("RenderSet")
+    applyFont(title, 16, GameFontNormalLarge)
     setTextColor(title, COLORS.text)
 
     local subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -1)
     subtitle:SetText("Graphics Profiles")
+    applyFont(subtitle, 11, GameFontHighlightSmall)
     setTextColor(subtitle, COLORS.muted)
 
-    local closeButton = CreateFrame("Button", nil, frame, "UIPanelCloseButton")
-    closeButton:SetPoint("TOPRIGHT", -3, -3)
+    local closeButton = CreateFrame("Button", nil, frame)
+    closeButton:SetSize(26, 26)
+    closeButton:SetPoint("TOPRIGHT", -10, -10)
+    local closeBackground = closeButton:CreateTexture(nil, "BACKGROUND")
+    closeBackground:SetAllPoints()
+    setTextureColor(closeBackground, COLORS.panelDeep)
+    local closeEdges = addBorder(closeButton, COLORS.border[1], COLORS.border[2], COLORS.border[3], 1)
+    local closeText = closeButton:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+    closeText:SetPoint("CENTER", 0, 1)
+    closeText:SetText("×")
+    applyFont(closeText, 17, GameFontHighlight)
+    closeText:SetTextColor(0.58, 0.62, 0.66)
+    closeButton:SetScript("OnEnter", function()
+        setTextureColor(closeBackground, COLORS.hover)
+        setBorderColor(closeEdges, COLORS.accentBorder[1], COLORS.accentBorder[2], COLORS.accentBorder[3], 1)
+        setTextColor(closeText, COLORS.text)
+    end)
+    closeButton:SetScript("OnLeave", function()
+        setTextureColor(closeBackground, COLORS.panelDeep)
+        setBorderColor(closeEdges, COLORS.border[1], COLORS.border[2], COLORS.border[3], 1)
+        closeText:SetTextColor(0.58, 0.62, 0.66)
+    end)
+    closeButton:SetScript("OnMouseDown", function()
+        setTextureColor(closeBackground, COLORS.errorSoft)
+    end)
+    closeButton:SetScript("OnMouseUp", function(self)
+        if self:GetScript("OnEnter") then
+            self:GetScript("OnEnter")()
+        end
+    end)
+    closeButton:SetScript("OnClick", UI.Hide)
+    frame.closeButton = closeButton
 
     local listPanel = CreateFrame("Frame", nil, frame)
     listPanel:SetSize(LAYOUT.leftWidth, LAYOUT.bodyHeight)
@@ -575,26 +625,73 @@ local function createFrame()
     local profilesLabel = listPanel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     profilesLabel:SetPoint("TOPLEFT", 9, -7)
     profilesLabel:SetText("PROFILES")
+    applyFont(profilesLabel, 11, GameFontNormalSmall)
     profilesLabel:SetTextColor(0.68, 0.72, 0.76)
 
     local profileCountText = listPanel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     profileCountText:SetPoint("TOPRIGHT", -9, -7)
     profileCountText:SetText("0 profiles")
+    applyFont(profileCountText, 10, GameFontDisableSmall)
     frame.profileCountText = profileCountText
 
-    local scrollFrame = CreateFrame("ScrollFrame", nil, listPanel, "UIPanelScrollFrameTemplate")
+    local scrollFrame = CreateFrame("ScrollFrame", nil, listPanel)
     scrollFrame:SetPoint("TOPLEFT", 9, -24)
-    scrollFrame:SetPoint("BOTTOMRIGHT", -27, 7)
+    scrollFrame:SetPoint("BOTTOMRIGHT", -29, 7)
+    scrollFrame:EnableMouseWheel(true)
+    scrollFrame.maxScroll = 0
 
     local profileContent = CreateFrame("Frame", nil, scrollFrame)
     profileContent:SetWidth(LAYOUT.profileRowWidth)
     profileContent:SetHeight(1)
     scrollFrame:SetScrollChild(profileContent)
+    frame.profileScroll = scrollFrame
     frame.profileContent = profileContent
+
+    local scrollTrack = CreateFrame("Frame", nil, listPanel)
+    scrollTrack:SetWidth(4)
+    scrollTrack:SetPoint("TOPRIGHT", -10, -24)
+    scrollTrack:SetPoint("BOTTOMRIGHT", -10, 7)
+    local trackTexture = scrollTrack:CreateTexture(nil, "BACKGROUND")
+    trackTexture:SetAllPoints()
+    trackTexture:SetColorTexture(0.055, 0.062, 0.071, 1)
+
+    local scrollThumb = CreateFrame("Frame", nil, scrollTrack)
+    scrollThumb:SetWidth(4)
+    local thumbTexture = scrollThumb:CreateTexture(nil, "ARTWORK")
+    thumbTexture:SetAllPoints()
+    thumbTexture:SetColorTexture(0.24, 0.29, 0.33, 1)
+
+    function frame.UpdateScrollbar()
+        local maxScroll = scrollFrame.maxScroll or 0
+        if maxScroll <= 0 then
+            scrollFrame:SetVerticalScroll(0)
+            scrollTrack:Hide()
+            return
+        end
+
+        scrollTrack:Show()
+        local trackHeight = LAYOUT.profileViewportHeight
+        local contentHeight = trackHeight + maxScroll
+        local thumbHeight = math.max(24, math.floor(trackHeight * trackHeight / contentHeight))
+        local travel = trackHeight - thumbHeight
+        local offset = travel * (scrollFrame:GetVerticalScroll() / maxScroll)
+        scrollThumb:SetHeight(thumbHeight)
+        scrollThumb:ClearAllPoints()
+        scrollThumb:SetPoint("TOP", scrollTrack, "TOP", 0, -offset)
+    end
+
+    scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+        local nextScroll = self:GetVerticalScroll() - (delta * (LAYOUT.rowHeight + 2))
+        self:SetVerticalScroll(math.max(0, math.min(self.maxScroll or 0, nextScroll)))
+        frame.UpdateScrollbar()
+    end)
+    frame.scrollTrack = scrollTrack
+    frame.scrollThumb = scrollThumb
 
     local emptyText = listPanel:CreateFontString(nil, "ARTWORK", "GameFontDisable")
     emptyText:SetPoint("CENTER", 0, -10)
     emptyText:SetText("No profiles saved.")
+    applyFont(emptyText, 12, GameFontDisable)
     frame.emptyText = emptyText
 
     local rightPanel = CreateFrame("Frame", nil, frame)
@@ -608,6 +705,7 @@ local function createFrame()
     local profileLabel = rightPanel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     profileLabel:SetPoint("TOPLEFT", 12, -10)
     profileLabel:SetText("PROFILE")
+    applyFont(profileLabel, 11, GameFontNormalSmall)
     profileLabel:SetTextColor(0.68, 0.72, 0.76)
 
     local selectedText = rightPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
@@ -616,15 +714,16 @@ local function createFrame()
     selectedText:SetJustifyH("RIGHT")
     selectedText:SetWordWrap(false)
     selectedText:SetText("No profile selected")
+    applyFont(selectedText, 11, GameFontHighlightSmall)
     setTextColor(selectedText, COLORS.muted)
     frame.selectedText = selectedText
 
     local nameInput = CreateFrame("EditBox", nil, rightPanel)
-    nameInput:SetSize(LAYOUT.rightWidth - 24, 30)
-    nameInput:SetPoint("TOPLEFT", 12, -38)
+    nameInput:SetSize(LAYOUT.rightWidth - 24, 28)
+    nameInput:SetPoint("TOPLEFT", 12, -34)
     nameInput:SetAutoFocus(false)
     nameInput:SetMaxLetters(80)
-    nameInput:SetFontObject(ChatFontNormal)
+    applyFont(nameInput, 13, ChatFontNormal)
     nameInput:SetTextInsets(10, 10, 0, 0)
     nameInput:SetJustifyV("MIDDLE")
 
@@ -636,6 +735,7 @@ local function createFrame()
     local inputPlaceholder = nameInput:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     inputPlaceholder:SetPoint("LEFT", 10, 0)
     inputPlaceholder:SetText("Profile name")
+    applyFont(inputPlaceholder, 11, GameFontDisableSmall)
     nameInput:SetScript("OnTextChanged", function(self)
         inputPlaceholder:SetShown(self:GetText() == "")
     end)
@@ -652,7 +752,7 @@ local function createFrame()
 
     renameButton = createActionButton(rightPanel, "Rename", "secondary")
     renameButton:SetSize(143, LAYOUT.buttonHeight)
-    renameButton:SetPoint("TOPLEFT", 12, -78)
+    renameButton:SetPoint("TOPLEFT", 12, -70)
     renameButton:SetScript("OnClick", function()
         local _, message, renamed = UI.RenameSelection(selectedProfile, nameInput:GetText())
         setStatus(message)
@@ -665,7 +765,7 @@ local function createFrame()
 
     deleteButton = createActionButton(rightPanel, "Delete", "secondary")
     deleteButton:SetSize(143, LAYOUT.buttonHeight)
-    deleteButton:SetPoint("TOPRIGHT", -12, -78)
+    deleteButton:SetPoint("TOPRIGHT", -12, -70)
     deleteButton:SetScript("OnClick", function()
         local _, message = UI.RequestDeleteSelection(selectedProfile)
         setStatus(message)
@@ -673,13 +773,14 @@ local function createFrame()
     frame.deleteButton = deleteButton
 
     local statusLabel = rightPanel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    statusLabel:SetPoint("TOPLEFT", 12, -121)
+    statusLabel:SetPoint("TOPLEFT", 12, -111)
     statusLabel:SetText("STATUS")
+    applyFont(statusLabel, 11, GameFontNormalSmall)
     statusLabel:SetTextColor(0.68, 0.72, 0.76)
 
     local statusPanel = CreateFrame("Frame", nil, rightPanel)
-    statusPanel:SetSize(LAYOUT.rightWidth - 24, 63)
-    statusPanel:SetPoint("TOPLEFT", 12, -142)
+    statusPanel:SetSize(LAYOUT.rightWidth - 24, 42)
+    statusPanel:SetPoint("TOPLEFT", 12, -128)
     local statusBackground = statusPanel:CreateTexture(nil, "BACKGROUND")
     statusBackground:SetAllPoints()
     setTextureColor(statusBackground, COLORS.panelDeep)
@@ -693,12 +794,13 @@ local function createFrame()
     frame.statusAccent = statusAccent
 
     local statusText = statusPanel:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    statusText:SetPoint("TOPLEFT", 11, -10)
-    statusText:SetPoint("BOTTOMRIGHT", -9, 9)
+    statusText:SetPoint("TOPLEFT", 11, -7)
+    statusText:SetPoint("BOTTOMRIGHT", -9, 7)
     statusText:SetJustifyH("LEFT")
     statusText:SetJustifyV("TOP")
     statusText:SetWordWrap(true)
     statusText:SetText("Ready")
+    applyFont(statusText, 11, GameFontHighlightSmall)
     setTextColor(statusText, COLORS.muted)
     frame.statusText = statusText
 
@@ -716,7 +818,7 @@ local function createFrame()
     setTextureColor(footerLine, COLORS.divider)
 
     local saveButton = createActionButton(footer, "Save Current", "secondary")
-    saveButton:SetSize(154, 31)
+    saveButton:SetSize(154, 29)
     saveButton:SetPoint("LEFT", 15, 0)
     saveButton:SetScript("OnClick", function()
         local name = nameInput:GetText()
@@ -737,7 +839,7 @@ local function createFrame()
     end)
 
     applyButton = createActionButton(footer, "Apply Profile", "primary")
-    applyButton:SetSize(190, 31)
+    applyButton:SetSize(190, 29)
     applyButton:SetPoint("RIGHT", -15, 0)
     applyButton:SetScript("OnClick", function()
         local _, message = UI.ApplySelection(selectedProfile)

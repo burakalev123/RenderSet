@@ -82,6 +82,11 @@ local function newWidget(name, parent)
         self.fontObject = fontObject
     end
 
+    function widget:SetFont(path, size, flags)
+        self.font = { path, size, flags }
+        return true
+    end
+
     function widget:SetTextInsets(...)
         self.textInsets = { ... }
     end
@@ -155,6 +160,7 @@ local function newWidget(name, parent)
     function widget:SetFrameStrata() end
     function widget:SetClampedToScreen() end
     function widget:EnableMouse() end
+    function widget:EnableMouseWheel() end
     function widget:SetMovable() end
     function widget:RegisterForDrag() end
     function widget:StartMoving() end
@@ -165,6 +171,17 @@ local function newWidget(name, parent)
     function widget:SetScrollChild(child)
         self.scrollChild = child
     end
+    function widget:SetVerticalScroll(value)
+        self.verticalScroll = value
+        if self.scripts.OnVerticalScroll and not self.updatingVerticalScroll then
+            self.updatingVerticalScroll = true
+            self.scripts.OnVerticalScroll(self, value)
+            self.updatingVerticalScroll = false
+        end
+    end
+    function widget:GetVerticalScroll()
+        return self.verticalScroll or 0
+    end
     function widget:Raise() end
     function widget:GetName()
         return self.name
@@ -173,8 +190,10 @@ local function newWidget(name, parent)
     return widget
 end
 
-function CreateFrame(_, name, parent)
-    return newWidget(name, parent)
+function CreateFrame(_, name, parent, template)
+    local widget = newWidget(name, parent)
+    widget.template = template
+    return widget
 end
 
 local captureCalls = {}
@@ -336,6 +355,16 @@ function tests.show_hide_and_toggle_work()
     assertFalse(getFrame():IsShown())
 end
 
+function tests.custom_close_button_hides_frame()
+    resetProfiles({})
+    addon.UI.Show()
+
+    local currentFrame = getFrame()
+    assertEqual(currentFrame.closeButton.template, nil)
+    currentFrame.closeButton:Click()
+    assertFalse(currentFrame:IsShown())
+end
+
 function tests.empty_profile_state_is_visible_and_actions_are_disabled()
     resetProfiles({})
     addon.UI.Show()
@@ -367,6 +396,26 @@ function tests.profile_rows_render_and_selection_updates_immediately()
     assertEqual(currentFrame.selectedText:GetText(), "Beta")
     assertFalse(currentFrame.profileButtons[1].selectedTexture:IsShown())
     assertTrue(currentFrame.profileButtons[2].selectedTexture:IsShown())
+end
+
+function tests.custom_scroll_structure_handles_overflow_and_wheel_input()
+    resetProfiles({
+        Alpha = {}, Beta = {}, Charlie = {}, Delta = {}, Echo = {},
+        Foxtrot = {}, Golf = {}, Hotel = {}, India = {},
+    })
+    addon.UI.Show()
+
+    local currentFrame = getFrame()
+    assertEqual(currentFrame.profileScroll.template, nil)
+    assertTrue(currentFrame.scrollTrack:IsShown())
+    assertTrue(currentFrame.profileScroll.maxScroll > 0)
+    currentFrame.profileScroll:GetScript("OnMouseWheel")(currentFrame.profileScroll, -1)
+    assertTrue(currentFrame.profileScroll:GetVerticalScroll() > 0)
+
+    resetProfiles({ Alpha = {} })
+    addon.UI.RefreshProfileList()
+    assertFalse(currentFrame.scrollTrack:IsShown())
+    assertEqual(currentFrame.profileScroll:GetVerticalScroll(), 0)
 end
 
 function tests.action_buttons_follow_selection_state()
