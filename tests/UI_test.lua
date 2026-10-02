@@ -359,10 +359,12 @@ function tests.profile_rows_render_and_selection_updates_immediately()
     assertEqual(currentFrame.profileButtons[1].profileName, "Alpha")
     assertEqual(currentFrame.profileButtons[2].profileName, "Beta")
     assertEqual(addon.UI.GetSelectedProfile(), "Alpha")
+    assertEqual(currentFrame.selectedText:GetText(), "Alpha")
     assertTrue(currentFrame.profileButtons[1].selectedTexture:IsShown())
 
     currentFrame.profileButtons[2]:Click()
     assertEqual(addon.UI.GetSelectedProfile(), "Beta")
+    assertEqual(currentFrame.selectedText:GetText(), "Beta")
     assertFalse(currentFrame.profileButtons[1].selectedTexture:IsShown())
     assertTrue(currentFrame.profileButtons[2].selectedTexture:IsShown())
 end
@@ -403,6 +405,7 @@ function tests.new_profile_delegates_to_capture()
     assertEqual(#captureCalls, 1)
     assertEqual(captureCalls[1], "New Profile")
     assertEqual(message, "Saved New Profile.")
+    assertEqual(addon.UI.SummarizeCapture(captureResult), "Profile saved.")
 end
 
 function tests.shared_validation_rejects_whitespace_save_name()
