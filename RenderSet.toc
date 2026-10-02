@@ -7,3 +7,5 @@
 Core.lua
 Profiles.lua
 UI.lua
+Commands.lua
+MinimapButton.lua

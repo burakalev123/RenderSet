@@ -413,4 +413,21 @@ function UI.Show()
     frame:Raise()
 end
 
+function UI.Hide()
+    if frame then
+        frame:Hide()
+    end
+end
+
+function UI.Toggle()
+    if not frame then
+        UI.Show()
+    elseif frame:IsShown() then
+        UI.Hide()
+    else
+        UI.Show()
+    end
+end
+
 _G.RenderSetTest.ShowUI = UI.Show
+_G.RenderSetTest.ToggleUI = UI.Toggle

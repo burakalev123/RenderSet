@@ -240,6 +240,12 @@ function tests.result_summaries_cover_success_skips_and_errors()
     assertContains(failed, "1 error")
 end
 
+function tests.toggle_api_is_exposed_for_user_entry_points()
+    assertEqual(type(addon.UI.Show), "function")
+    assertEqual(type(addon.UI.Hide), "function")
+    assertEqual(type(addon.UI.Toggle), "function")
+end
+
 local passed = 0
 for name, test in pairs(tests) do
     local succeeded, message = pcall(test)
