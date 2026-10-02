@@ -176,6 +176,8 @@ function tests.rename_delegates_to_engine_and_updates_selection()
     assertEqual(renameCalls[1][1], "Quality")
     assertEqual(renameCalls[1][2], "My Quality")
     assertEqual(addon.UI.GetSelectedProfile(), "My Quality")
+    assertEqual(RenderSetDB.selectedProfile, nil)
+    assertEqual(RenderSetDB.activeProfile, nil)
 end
 
 function tests.delete_requires_confirmation_and_updates_selection()
@@ -199,6 +201,8 @@ function tests.delete_requires_confirmation_and_updates_selection()
     assertEqual(#deleteCalls, 1)
     assertEqual(deleteCalls[1], "Beta")
     assertEqual(addon.UI.GetSelectedProfile(), "Alpha")
+    assertEqual(RenderSetDB.selectedProfile, nil)
+    assertEqual(RenderSetDB.activeProfile, nil)
 end
 
 function tests.changing_selection_cancels_pending_delete()
@@ -244,6 +248,16 @@ function tests.toggle_api_is_exposed_for_user_entry_points()
     assertEqual(type(addon.UI.Show), "function")
     assertEqual(type(addon.UI.Hide), "function")
     assertEqual(type(addon.UI.Toggle), "function")
+end
+
+function tests.selection_is_transient_and_not_persisted()
+    RenderSetDB.profiles = { Quality = {} }
+
+    addon.UI.SelectProfile("Quality")
+
+    assertEqual(addon.UI.GetSelectedProfile(), "Quality")
+    assertEqual(RenderSetDB.selectedProfile, nil)
+    assertEqual(RenderSetDB.activeProfile, nil)
 end
 
 local passed = 0

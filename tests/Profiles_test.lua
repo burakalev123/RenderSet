@@ -145,9 +145,12 @@ function tests.apply_success()
     end
 end
 
-function tests.apply_ignores_unknown_key()
+function tests.apply_allowlist_ignores_unknown_stored_key()
     local profile = {
         graphicsShadowQuality = "2",
+        graphicsProjectedTextures = "1",
+        graphicsParticleDensity = "4",
+        graphicsViewDistance = "6",
         someOldCVar = "123",
     }
     local current = {}
@@ -158,9 +161,14 @@ function tests.apply_ignores_unknown_key()
         return true
     end)
 
-    addon.ApplyProfile("OldProfile")
-    assertEqual(#calls.writes, 1)
-    assertEqual(calls.writes[1][1], "graphicsShadowQuality")
+    local result = addon.ApplyProfile("OldProfile")
+    assertTrue(result.success)
+    assertEqual(#calls.writes, 4)
+    assertEqual(countKeys(result.applied), 4)
+    for _, write in ipairs(calls.writes) do
+        assertTrue(EXPECTED_CVARS[write[1]], "applied unexpected CVar " .. write[1])
+    end
+    assertEqual(current.someOldCVar, nil)
 end
 
 function tests.apply_continues_after_write_failure()
@@ -200,6 +208,32 @@ function tests.apply_reports_readback_mismatch()
     assertFalse(result.success)
     assertEqual(result.applied.graphicsParticleDensity, nil)
     assertEqual(result.errors.graphicsParticleDensity, "readback did not match stored value")
+end
+
+function tests.apply_continues_after_single_readback_failure()
+    local values = {
+        graphicsShadowQuality = "2",
+        graphicsProjectedTextures = "1",
+        graphicsParticleDensity = "4",
+        graphicsViewDistance = "6",
+    }
+    local current = {}
+    local addon, calls = loadEngine({ MixedReadback = values }, function(cvarName)
+        if cvarName == "graphicsParticleDensity" then
+            error("readback failed")
+        end
+        return current[cvarName]
+    end, function(cvarName, value)
+        current[cvarName] = value
+        return true
+    end)
+
+    local result = addon.ApplyProfile("MixedReadback")
+    assertFalse(result.success)
+    assertEqual(#calls.writes, 4)
+    assertEqual(countKeys(result.applied), 3)
+    assertTrue(type(result.errors.graphicsParticleDensity) == "string")
+    assertEqual(result.applied.graphicsViewDistance, "6")
 end
 
 function tests.apply_skips_missing_value()
@@ -271,6 +305,24 @@ function tests.capture_duplicate_rejects_without_reads_or_overwrite()
     assertEqual(RenderSetDB.profiles.Quality, existing)
     assertEqual(RenderSetDB.profiles.Quality.graphicsShadowQuality, "3")
     assertEqual(RenderSetDB.profiles.Quality.graphicsProjectedTextures, "1")
+end
+
+function tests.capture_invalid_names_do_not_read_or_create_profiles()
+    local addon, calls = loadEngine({}, function()
+        error("invalid capture should not read CVars")
+    end, function()
+        return true
+    end)
+
+    local emptyResult = addon.CaptureProfile("")
+    local whitespaceResult = addon.CaptureProfile("   ")
+    local nonStringResult = addon.CaptureProfile(42)
+
+    assertFalse(emptyResult.success)
+    assertFalse(whitespaceResult.success)
+    assertFalse(nonStringResult.success)
+    assertEqual(#calls.reads, 0)
+    assertEqual(next(RenderSetDB.profiles), nil)
 end
 
 function tests.profile_name_validation_accepts_names_and_rejects_invalid_values()
