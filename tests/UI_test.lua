@@ -3,10 +3,179 @@ RenderSetDB = {
     profiles = {},
 }
 
-RenderSetTest = {
-    CaptureProfile = function() end,
-    ApplyProfile = function() end,
-}
+RenderSetTest = {}
+UIParent = {}
+UISpecialFrames = {}
+
+local function newWidget(name, parent)
+    local widget = {
+        name = name,
+        parent = parent,
+        shown = true,
+        enabled = true,
+        scripts = {},
+        text = "",
+        alpha = 1,
+    }
+
+    function widget:SetSize(width, height)
+        self.width = width
+        self.height = height
+    end
+
+    function widget:SetWidth(width)
+        self.width = width
+    end
+
+    function widget:SetHeight(height)
+        self.height = height
+    end
+
+    function widget:SetPoint(...)
+        self.point = { ... }
+    end
+
+    function widget:ClearAllPoints()
+        self.point = nil
+    end
+
+    function widget:SetAllPoints()
+        self.allPoints = true
+    end
+
+    function widget:SetColorTexture(...)
+        self.color = { ... }
+    end
+
+    function widget:SetText(text)
+        self.text = text
+        if self.scripts.OnTextChanged then
+            self.scripts.OnTextChanged(self)
+        end
+    end
+
+    function widget:GetText()
+        return self.text
+    end
+
+    function widget:SetTextColor(...)
+        self.textColor = { ... }
+    end
+
+    function widget:SetJustifyH(justification)
+        self.justification = justification
+    end
+
+    function widget:SetJustifyV(justification)
+        self.verticalJustification = justification
+    end
+
+    function widget:SetWordWrap(wordWrap)
+        self.wordWrap = wordWrap
+    end
+
+    function widget:SetFontString(fontString)
+        self.fontString = fontString
+    end
+
+    function widget:SetFontObject(fontObject)
+        self.fontObject = fontObject
+    end
+
+    function widget:SetTextInsets(...)
+        self.textInsets = { ... }
+    end
+
+    function widget:SetAlpha(alpha)
+        self.alpha = alpha
+    end
+
+    function widget:SetScript(scriptName, callback)
+        self.scripts[scriptName] = callback
+    end
+
+    function widget:GetScript(scriptName)
+        return self.scripts[scriptName]
+    end
+
+    function widget:Show()
+        local wasShown = self.shown
+        self.shown = true
+        if not wasShown and self.scripts.OnShow then
+            self.scripts.OnShow(self)
+        end
+    end
+
+    function widget:Hide()
+        local wasShown = self.shown
+        self.shown = false
+        if wasShown and self.scripts.OnHide then
+            self.scripts.OnHide(self)
+        end
+    end
+
+    function widget:SetShown(shown)
+        if shown then
+            self:Show()
+        else
+            self:Hide()
+        end
+    end
+
+    function widget:IsShown()
+        return self.shown
+    end
+
+    function widget:Enable()
+        self.enabled = true
+    end
+
+    function widget:Disable()
+        self.enabled = false
+    end
+
+    function widget:IsEnabled()
+        return self.enabled
+    end
+
+    function widget:Click()
+        if self.enabled and self.scripts.OnClick then
+            self.scripts.OnClick(self)
+        end
+    end
+
+    function widget:CreateTexture(textureName)
+        return newWidget(textureName, self)
+    end
+
+    function widget:CreateFontString(fontName)
+        return newWidget(fontName, self)
+    end
+
+    function widget:SetFrameStrata() end
+    function widget:SetClampedToScreen() end
+    function widget:EnableMouse() end
+    function widget:SetMovable() end
+    function widget:RegisterForDrag() end
+    function widget:StartMoving() end
+    function widget:StopMovingOrSizing() end
+    function widget:SetAutoFocus() end
+    function widget:SetMaxLetters() end
+    function widget:ClearFocus() end
+    function widget:SetScrollChild(child)
+        self.scrollChild = child
+    end
+    function widget:Raise() end
+    function widget:GetName()
+        return self.name
+    end
+
+    return widget
+end
+
+function CreateFrame(_, name, parent)
+    return newWidget(name, parent)
+end
 
 local captureCalls = {}
 local applyCalls = {}
@@ -31,17 +200,6 @@ local applyResult = {
     skipped = {},
     errors = {},
 }
-local renameResult = {
-    success = true,
-    renamed = true,
-    unchanged = false,
-    errors = {},
-}
-local deleteResult = {
-    success = true,
-    deleted = true,
-    errors = {},
-}
 
 local function validateProfileName(name)
     if type(name) ~= "string" or name == "" then
@@ -57,6 +215,16 @@ local addon = {
     ValidateProfileName = validateProfileName,
     CaptureProfile = function(name)
         captureCalls[#captureCalls + 1] = name
+        if RenderSetDB.profiles[name] ~= nil then
+            return {
+                success = false,
+                saved = false,
+                captured = {},
+                applied = {},
+                skipped = {},
+                errors = { profile = "profile already exists" },
+            }
+        end
         RenderSetDB.profiles[name] = { graphicsShadowQuality = "2" }
         return captureResult
     end,
@@ -66,15 +234,25 @@ local addon = {
     end,
     RenameProfile = function(oldName, newName)
         renameCalls[#renameCalls + 1] = { oldName, newName }
+        if oldName == newName then
+            return { success = true, renamed = false, unchanged = true, errors = {} }
+        elseif RenderSetDB.profiles[newName] ~= nil then
+            return {
+                success = false,
+                renamed = false,
+                unchanged = false,
+                errors = { profile = "destination profile already exists" },
+            }
+        end
         local profile = RenderSetDB.profiles[oldName]
         RenderSetDB.profiles[newName] = profile
         RenderSetDB.profiles[oldName] = nil
-        return renameResult
+        return { success = true, renamed = true, unchanged = false, errors = {} }
     end,
     DeleteProfile = function(name)
         deleteCalls[#deleteCalls + 1] = name
         RenderSetDB.profiles[name] = nil
-        return deleteResult
+        return { success = true, deleted = true, errors = {} }
     end,
 }
 
@@ -83,6 +261,18 @@ chunk("RenderSet", addon)
 
 local function fail(message)
     error(message, 2)
+end
+
+local function assertTrue(value, message)
+    if value ~= true then
+        fail(message or "expected true")
+    end
+end
+
+local function assertFalse(value, message)
+    if value ~= false then
+        fail(message or "expected false")
+    end
 end
 
 local function assertEqual(actual, expected, message)
@@ -97,14 +287,22 @@ local function assertContains(value, expected, message)
     end
 end
 
+local function resetProfiles(profiles)
+    RenderSetDB = {
+        schemaVersion = 1,
+        profiles = profiles or {},
+    }
+    addon.UI.SelectProfile(nil)
+end
+
+local function getFrame()
+    return RenderSetTest.GetUIFrame()
+end
+
 local tests = {}
 
 function tests.profile_names_are_sorted()
-    RenderSetDB.profiles = {
-        Zebra = {},
-        Alpha = {},
-        Middle = {},
-    }
+    resetProfiles({ Zebra = {}, Alpha = {}, Middle = {} })
 
     local names = addon.UI.GetSortedProfileNames()
     assertEqual(#names, 3)
@@ -113,36 +311,107 @@ function tests.profile_names_are_sorted()
     assertEqual(names[3], "Zebra")
 end
 
-function tests.duplicate_name_does_not_capture()
-    RenderSetDB.profiles = { Existing = {} }
+function tests.ui_creation_succeeds()
+    resetProfiles({})
+    addon.UI.Show()
+
+    local currentFrame = getFrame()
+    assertTrue(currentFrame ~= nil)
+    assertTrue(currentFrame:IsShown())
+    assertEqual(UISpecialFrames[#UISpecialFrames], "RenderSetFrame")
+end
+
+function tests.show_hide_and_toggle_work()
+    resetProfiles({})
+    addon.UI.Show()
+    assertTrue(getFrame():IsShown())
+
+    addon.UI.Hide()
+    assertFalse(getFrame():IsShown())
+
+    addon.UI.Toggle()
+    assertTrue(getFrame():IsShown())
+
+    addon.UI.Toggle()
+    assertFalse(getFrame():IsShown())
+end
+
+function tests.empty_profile_state_is_visible_and_actions_are_disabled()
+    resetProfiles({})
+    addon.UI.Show()
+
+    local currentFrame = getFrame()
+    assertTrue(currentFrame.emptyText:IsShown())
+    assertEqual(currentFrame.profileCountText:GetText(), "0 profiles")
+    assertFalse(currentFrame.applyButton:IsEnabled())
+    assertFalse(currentFrame.renameButton:IsEnabled())
+    assertFalse(currentFrame.deleteButton:IsEnabled())
+    assertTrue(currentFrame.saveButton:IsEnabled())
+end
+
+function tests.profile_rows_render_and_selection_updates_immediately()
+    resetProfiles({ Beta = {}, Alpha = {} })
+    addon.UI.Show()
+
+    local currentFrame = getFrame()
+    assertFalse(currentFrame.emptyText:IsShown())
+    assertEqual(currentFrame.profileCountText:GetText(), "2 profiles")
+    assertEqual(currentFrame.profileButtons[1].profileName, "Alpha")
+    assertEqual(currentFrame.profileButtons[2].profileName, "Beta")
+    assertEqual(addon.UI.GetSelectedProfile(), "Alpha")
+    assertTrue(currentFrame.profileButtons[1].selectedTexture:IsShown())
+
+    currentFrame.profileButtons[2]:Click()
+    assertEqual(addon.UI.GetSelectedProfile(), "Beta")
+    assertFalse(currentFrame.profileButtons[1].selectedTexture:IsShown())
+    assertTrue(currentFrame.profileButtons[2].selectedTexture:IsShown())
+end
+
+function tests.action_buttons_follow_selection_state()
+    resetProfiles({ Quality = {} })
+    addon.UI.Show()
+
+    local currentFrame = getFrame()
+    assertTrue(currentFrame.applyButton:IsEnabled())
+    assertTrue(currentFrame.renameButton:IsEnabled())
+    assertTrue(currentFrame.deleteButton:IsEnabled())
+
+    addon.UI.SelectProfile(nil)
+    assertFalse(currentFrame.applyButton:IsEnabled())
+    assertFalse(currentFrame.renameButton:IsEnabled())
+    assertFalse(currentFrame.deleteButton:IsEnabled())
+end
+
+function tests.duplicate_name_delegates_to_engine_protection()
+    resetProfiles({ Existing = {} })
     captureCalls = {}
 
     local result, message, saved = addon.UI.SaveCurrent("Existing")
-    assertEqual(result, nil)
-    assertEqual(saved, false)
-    assertEqual(#captureCalls, 0)
-    assertEqual(message, "A profile with that name already exists.")
+    assertFalse(result.success)
+    assertFalse(saved)
+    assertEqual(#captureCalls, 1)
+    assertEqual(message, "Profile already exists.")
 end
 
 function tests.new_profile_delegates_to_capture()
-    RenderSetDB.profiles = {}
+    resetProfiles({})
     captureCalls = {}
 
     local result, message, saved = addon.UI.SaveCurrent("New Profile")
     assertEqual(result, captureResult)
-    assertEqual(saved, true)
+    assertTrue(saved)
     assertEqual(#captureCalls, 1)
     assertEqual(captureCalls[1], "New Profile")
-    assertEqual(message, "Profile saved.")
+    assertEqual(message, "Saved New Profile.")
 end
 
 function tests.shared_validation_rejects_whitespace_save_name()
-    RenderSetDB.profiles = {}
+    resetProfiles({})
     captureCalls = {}
 
     local result, message, saved = addon.UI.SaveCurrent("   ")
     assertEqual(result, nil)
-    assertEqual(saved, false)
+    assertFalse(saved)
     assertEqual(#captureCalls, 0)
     assertEqual(message, "Profile name cannot be only whitespace.")
 end
@@ -167,14 +436,14 @@ function tests.apply_without_selection_does_not_call_engine()
 end
 
 function tests.rename_delegates_to_engine_and_updates_selection()
-    RenderSetDB.profiles = { Quality = { graphicsShadowQuality = "3" } }
+    resetProfiles({ Quality = { graphicsShadowQuality = "3" } })
     renameCalls = {}
     addon.UI.SelectProfile("Quality")
 
     local result, message, renamed = addon.UI.RenameSelection("Quality", "My Quality")
-    assertEqual(result, renameResult)
-    assertEqual(message, "Profile renamed.")
-    assertEqual(renamed, true)
+    assertTrue(result.success)
+    assertTrue(renamed)
+    assertEqual(message, "Renamed Quality → My Quality.")
     assertEqual(#renameCalls, 1)
     assertEqual(renameCalls[1][1], "Quality")
     assertEqual(renameCalls[1][2], "My Quality")
@@ -184,45 +453,96 @@ function tests.rename_delegates_to_engine_and_updates_selection()
 end
 
 function tests.delete_requires_confirmation_and_updates_selection()
-    RenderSetDB.profiles = {
-        Alpha = {},
-        Beta = {},
-    }
+    resetProfiles({ Alpha = {}, Beta = {} })
     deleteCalls = {}
+    addon.UI.Show()
     addon.UI.SelectProfile("Beta")
 
     local firstResult, firstMessage, firstDeleted = addon.UI.RequestDeleteSelection("Beta")
     assertEqual(firstResult, nil)
-    assertContains(firstMessage, "Confirm Delete")
-    assertEqual(firstDeleted, false)
+    assertContains(firstMessage, "Confirm deletion")
+    assertFalse(firstDeleted)
+    assertEqual(getFrame().deleteButton:GetText(), "Confirm Delete")
     assertEqual(#deleteCalls, 0)
 
     local secondResult, secondMessage, secondDeleted = addon.UI.RequestDeleteSelection("Beta")
-    assertEqual(secondResult, deleteResult)
-    assertEqual(secondMessage, "Profile deleted.")
-    assertEqual(secondDeleted, true)
+    assertTrue(secondResult.success)
+    assertEqual(secondMessage, "Deleted Beta.")
+    assertTrue(secondDeleted)
     assertEqual(#deleteCalls, 1)
     assertEqual(deleteCalls[1], "Beta")
     assertEqual(addon.UI.GetSelectedProfile(), "Alpha")
-    assertEqual(RenderSetDB.selectedProfile, nil)
-    assertEqual(RenderSetDB.activeProfile, nil)
 end
 
 function tests.changing_selection_cancels_pending_delete()
-    RenderSetDB.profiles = {
-        Alpha = {},
-        Beta = {},
-    }
+    resetProfiles({ Alpha = {}, Beta = {} })
     deleteCalls = {}
+    addon.UI.Show()
     addon.UI.SelectProfile("Beta")
     addon.UI.RequestDeleteSelection("Beta")
     addon.UI.SelectProfile("Alpha")
 
+    assertEqual(getFrame().deleteButton:GetText(), "Delete")
     local result, message = addon.UI.RequestDeleteSelection("Alpha")
     assertEqual(result, nil)
-    assertContains(message, "Confirm Delete")
+    assertContains(message, "Confirm deletion")
     assertEqual(#deleteCalls, 0)
-    assertEqual(RenderSetDB.profiles.Beta ~= nil, true)
+    assertTrue(RenderSetDB.profiles.Beta ~= nil)
+end
+
+function tests.hiding_frame_cancels_pending_delete()
+    resetProfiles({ Alpha = {} })
+    deleteCalls = {}
+    addon.UI.Show()
+    addon.UI.SelectProfile("Alpha")
+    addon.UI.RequestDeleteSelection("Alpha")
+    assertEqual(getFrame().deleteButton:GetText(), "Confirm Delete")
+
+    addon.UI.Hide()
+    assertEqual(getFrame().deleteButton:GetText(), "Delete")
+    addon.UI.Show()
+
+    local result = addon.UI.RequestDeleteSelection("Alpha")
+    assertEqual(result, nil)
+    assertEqual(#deleteCalls, 0)
+end
+
+function tests.status_area_uses_engine_result_summary()
+    resetProfiles({ Quality = {} })
+    applyCalls = {}
+    addon.UI.Show()
+    addon.UI.SelectProfile("Quality")
+
+    getFrame().applyButton:Click()
+    assertEqual(getFrame().statusText:GetText(), "Applied Quality — 11 settings.")
+    assertEqual(#applyCalls, 1)
+end
+
+function tests.profile_list_refreshes_after_save_rename_and_delete()
+    resetProfiles({})
+    captureCalls = {}
+    renameCalls = {}
+    deleteCalls = {}
+    addon.UI.Show()
+
+    local currentFrame = getFrame()
+    currentFrame.nameInput:SetText("Quality")
+    currentFrame.saveButton:Click()
+    assertEqual(currentFrame.profileButtons[1].profileName, "Quality")
+    assertFalse(currentFrame.emptyText:IsShown())
+
+    currentFrame.nameInput:SetText("Raid")
+    currentFrame.renameButton:Click()
+    assertEqual(currentFrame.profileButtons[1].profileName, "Raid")
+    assertEqual(addon.UI.GetSelectedProfile(), "Raid")
+
+    currentFrame.deleteButton:Click()
+    currentFrame.deleteButton:Click()
+    assertTrue(currentFrame.emptyText:IsShown())
+    assertEqual(addon.UI.GetSelectedProfile(), nil)
+    assertEqual(#captureCalls, 1)
+    assertEqual(#renameCalls, 1)
+    assertEqual(#deleteCalls, 1)
 end
 
 function tests.result_summaries_cover_success_skips_and_errors()
@@ -257,8 +577,7 @@ function tests.toggle_api_is_exposed_for_user_entry_points()
 end
 
 function tests.selection_is_transient_and_not_persisted()
-    RenderSetDB.profiles = { Quality = {} }
-
+    resetProfiles({ Quality = {} })
     addon.UI.SelectProfile("Quality")
 
     assertEqual(addon.UI.GetSelectedProfile(), "Quality")
