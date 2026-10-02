@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: RenderSet
 ## Notes: Graphics profile manager for World of Warcraft: Forever
-## Version: 0.1.0-dev
+## Version: 0.1.0
 ## SavedVariables: RenderSetDB
 
 Core.lua
