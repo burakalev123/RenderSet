@@ -28,8 +28,6 @@ local LAYOUT = {
     footerHeight = 49,
 }
 
-local FONT_PATH = "Fonts\\ARIALN.TTF"
-
 local COLORS = {
     window = { 0.022, 0.025, 0.03, 0.99 },
     header = { 0.045, 0.05, 0.058, 1 },
@@ -39,7 +37,7 @@ local COLORS = {
     border = { 0.12, 0.14, 0.16, 1 },
     divider = { 0.1, 0.12, 0.14, 1 },
     text = { 0.92, 0.94, 0.96 },
-    muted = { 0.48, 0.52, 0.57 },
+    muted = { 0.62, 0.66, 0.71 },
     accent = { 0.12, 0.62, 0.82, 1 },
     accentBorder = { 0.08, 0.43, 0.58, 1 },
     accentSoft = { 0.045, 0.13, 0.18, 1 },
@@ -57,8 +55,12 @@ local function setTextColor(fontString, color)
 end
 
 local function applyFont(fontRegion, size, fallback)
-    local loaded, result = pcall(fontRegion.SetFont, fontRegion, FONT_PATH, size, "")
-    if (not loaded or result == false) and fallback then
+    local loaded, result = pcall(fontRegion.SetFont, fontRegion, STANDARD_TEXT_FONT, size, "")
+    if loaded and result ~= false then
+        return
+    end
+
+    if fallback then
         fontRegion:SetFontObject(fallback)
     end
 end
@@ -286,14 +288,14 @@ local function updateSelection()
             button.selectedTexture:Hide()
             button.hoverTexture:Hide()
             button.accent:Hide()
-            button.nameText:SetTextColor(0.72, 0.75, 0.78)
+            button.nameText:SetTextColor(0.84, 0.87, 0.9)
         end
     end
 
     if frame.selectedText then
         frame.selectedText:SetText(selectedProfile or "No profile selected")
         if selectedProfile then
-            frame.selectedText:SetTextColor(0.72, 0.84, 0.9)
+            frame.selectedText:SetTextColor(0.84, 0.9, 0.94)
         else
             setTextColor(frame.selectedText, COLORS.muted)
         end
@@ -356,7 +358,7 @@ local function createProfileButton(parent)
     nameText:SetJustifyH("LEFT")
     nameText:SetJustifyV("MIDDLE")
     nameText:SetWordWrap(false)
-    applyFont(nameText, 13, GameFontHighlight)
+    applyFont(nameText, 14, GameFontHighlight)
     button.nameText = nameText
 
     button:SetScript("OnEnter", function(self)
@@ -368,7 +370,7 @@ local function createProfileButton(parent)
     button:SetScript("OnLeave", function(self)
         self.hoverTexture:Hide()
         if not self.isSelected then
-            self.nameText:SetTextColor(0.72, 0.75, 0.78)
+            self.nameText:SetTextColor(0.84, 0.87, 0.9)
         end
     end)
     button:SetScript("OnClick", function(self)
@@ -484,7 +486,7 @@ local function createActionButton(parent, text, kind)
     label:SetPoint("CENTER", 0, 0)
     label:SetJustifyH("CENTER")
     label:SetJustifyV("MIDDLE")
-    applyFont(label, 12, GameFontHighlightSmall)
+    applyFont(label, 13, GameFontHighlightSmall)
     button:SetFontString(label)
     button.label = label
     button:SetText(text)
@@ -507,7 +509,7 @@ local function createActionButton(parent, text, kind)
             local lift = self.mouseDown and -0.005 or (self.mouseOver and 0.03 or 0)
             self.background:SetColorTexture(0.055 + lift, 0.062 + lift, 0.071 + lift, 1)
             setBorderColor(self.borderEdges, 0.16 + lift, 0.18 + lift, 0.21 + lift, 1)
-            self.label:SetTextColor(0.82, 0.85, 0.88)
+            self.label:SetTextColor(0.88, 0.9, 0.93)
         end
     end
 
@@ -572,13 +574,13 @@ local function createFrame()
     local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
     title:SetPoint("TOPLEFT", 16, -7)
     title:SetText("RenderSet")
-    applyFont(title, 16, GameFontNormalLarge)
+    applyFont(title, 18, GameFontNormalLarge)
     setTextColor(title, COLORS.text)
 
     local subtitle = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
     subtitle:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -1)
     subtitle:SetText("Graphics Profiles")
-    applyFont(subtitle, 11, GameFontHighlightSmall)
+    applyFont(subtitle, 12, GameFontHighlightSmall)
     setTextColor(subtitle, COLORS.muted)
 
     local closeButton = CreateFrame("Button", nil, frame)
@@ -625,13 +627,13 @@ local function createFrame()
     local profilesLabel = listPanel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     profilesLabel:SetPoint("TOPLEFT", 9, -7)
     profilesLabel:SetText("PROFILES")
-    applyFont(profilesLabel, 11, GameFontNormalSmall)
-    profilesLabel:SetTextColor(0.68, 0.72, 0.76)
+    applyFont(profilesLabel, 12, GameFontNormalSmall)
+    profilesLabel:SetTextColor(0.78, 0.82, 0.86)
 
     local profileCountText = listPanel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     profileCountText:SetPoint("TOPRIGHT", -9, -7)
     profileCountText:SetText("0 profiles")
-    applyFont(profileCountText, 10, GameFontDisableSmall)
+    applyFont(profileCountText, 11, GameFontDisableSmall)
     frame.profileCountText = profileCountText
 
     local scrollFrame = CreateFrame("ScrollFrame", nil, listPanel)
@@ -691,7 +693,7 @@ local function createFrame()
     local emptyText = listPanel:CreateFontString(nil, "ARTWORK", "GameFontDisable")
     emptyText:SetPoint("CENTER", 0, -10)
     emptyText:SetText("No profiles saved.")
-    applyFont(emptyText, 12, GameFontDisable)
+    applyFont(emptyText, 13, GameFontDisable)
     frame.emptyText = emptyText
 
     local rightPanel = CreateFrame("Frame", nil, frame)
@@ -705,8 +707,8 @@ local function createFrame()
     local profileLabel = rightPanel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     profileLabel:SetPoint("TOPLEFT", 12, -10)
     profileLabel:SetText("PROFILE")
-    applyFont(profileLabel, 11, GameFontNormalSmall)
-    profileLabel:SetTextColor(0.68, 0.72, 0.76)
+    applyFont(profileLabel, 12, GameFontNormalSmall)
+    profileLabel:SetTextColor(0.78, 0.82, 0.86)
 
     local selectedText = rightPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     selectedText:SetPoint("TOPRIGHT", -12, -10)
@@ -714,7 +716,7 @@ local function createFrame()
     selectedText:SetJustifyH("RIGHT")
     selectedText:SetWordWrap(false)
     selectedText:SetText("No profile selected")
-    applyFont(selectedText, 11, GameFontHighlightSmall)
+    applyFont(selectedText, 14, GameFontHighlightSmall)
     setTextColor(selectedText, COLORS.muted)
     frame.selectedText = selectedText
 
@@ -735,7 +737,7 @@ local function createFrame()
     local inputPlaceholder = nameInput:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
     inputPlaceholder:SetPoint("LEFT", 10, 0)
     inputPlaceholder:SetText("Profile name")
-    applyFont(inputPlaceholder, 11, GameFontDisableSmall)
+    applyFont(inputPlaceholder, 12, GameFontDisableSmall)
     nameInput:SetScript("OnTextChanged", function(self)
         inputPlaceholder:SetShown(self:GetText() == "")
     end)
@@ -775,8 +777,8 @@ local function createFrame()
     local statusLabel = rightPanel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     statusLabel:SetPoint("TOPLEFT", 12, -111)
     statusLabel:SetText("STATUS")
-    applyFont(statusLabel, 11, GameFontNormalSmall)
-    statusLabel:SetTextColor(0.68, 0.72, 0.76)
+    applyFont(statusLabel, 12, GameFontNormalSmall)
+    statusLabel:SetTextColor(0.78, 0.82, 0.86)
 
     local statusPanel = CreateFrame("Frame", nil, rightPanel)
     statusPanel:SetSize(LAYOUT.rightWidth - 24, 42)
@@ -800,7 +802,7 @@ local function createFrame()
     statusText:SetJustifyV("TOP")
     statusText:SetWordWrap(true)
     statusText:SetText("Ready")
-    applyFont(statusText, 11, GameFontHighlightSmall)
+    applyFont(statusText, 13, GameFontHighlightSmall)
     setTextColor(statusText, COLORS.muted)
     frame.statusText = statusText
 
