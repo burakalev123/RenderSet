@@ -198,6 +198,7 @@ end
 
 local captureCalls = {}
 local applyCalls = {}
+local presetApplyCalls = {}
 local renameCalls = {}
 local deleteCalls = {}
 local captureResult = {
@@ -234,6 +235,20 @@ local function validateProfileName(name)
 end
 
 local addon = {
+    BuiltinPresets = {
+        {
+            id = "macbook_internal_balanced",
+            name = "MacBook Pro Internal — Balanced",
+            shortName = "MacBook Pro — Balanced",
+            manualNote = "Manual: macOS Display Default · WoW Windowed",
+        },
+        {
+            id = "external_1440p_balanced",
+            name = "1440p External — Balanced",
+            shortName = "1440p External — Balanced",
+            manualNote = "Manual: 2560×1440 · 75 Hz display settings are not managed by RenderSet",
+        },
+    },
     ValidateProfileName = validateProfileName,
     CaptureProfile = function(name)
         captureCalls[#captureCalls + 1] = name
@@ -252,6 +267,10 @@ local addon = {
     end,
     ApplyProfile = function(name)
         applyCalls[#applyCalls + 1] = name
+        return applyResult
+    end,
+    ApplyBuiltInPreset = function(id)
+        presetApplyCalls[#presetApplyCalls + 1] = id
         return applyResult
     end,
     RenameProfile = function(oldName, newName)
@@ -277,6 +296,14 @@ local addon = {
         return { success = true, deleted = true, errors = {} }
     end,
 }
+
+function addon.GetBuiltInPreset(id)
+    for _, preset in ipairs(addon.BuiltinPresets) do
+        if preset.id == id then
+            return preset
+        end
+    end
+end
 
 local chunk = assert(loadfile("UI.lua"))
 chunk("RenderSet", addon)
@@ -375,10 +402,52 @@ function tests.empty_profile_state_is_visible_and_actions_are_disabled()
     local currentFrame = getFrame()
     assertTrue(currentFrame.emptyText:IsShown())
     assertEqual(currentFrame.profileCountText:GetText(), "0 profiles")
-    assertFalse(currentFrame.applyButton:IsEnabled())
+    assertTrue(currentFrame.applyButton:IsEnabled())
     assertFalse(currentFrame.renameButton:IsEnabled())
     assertFalse(currentFrame.deleteButton:IsEnabled())
     assertTrue(currentFrame.saveButton:IsEnabled())
+    assertEqual(select(1, addon.UI.GetSelection()), "preset")
+end
+
+function tests.built_in_rows_render_above_sorted_user_profiles()
+    resetProfiles({ Zebra = {}, Alpha = {} })
+    addon.UI.Show()
+
+    local currentFrame = getFrame()
+    assertEqual(currentFrame.presetButtons[1].selectionId, "macbook_internal_balanced")
+    assertEqual(currentFrame.presetButtons[2].selectionId, "external_1440p_balanced")
+    assertEqual(currentFrame.profileButtons[1].profileName, "Alpha")
+    assertEqual(currentFrame.profileButtons[2].profileName, "Zebra")
+    assertTrue(currentFrame.presetButtons[2].point[3] > currentFrame.profileButtons[1].point[3])
+end
+
+function tests.preset_selection_updates_title_note_and_action_states()
+    resetProfiles({ Quality = {} })
+    addon.UI.Show()
+
+    local currentFrame = getFrame()
+    currentFrame.presetButtons[1]:Click()
+    local kind, id = addon.UI.GetSelection()
+    assertEqual(kind, "preset")
+    assertEqual(id, "macbook_internal_balanced")
+    assertEqual(currentFrame.selectionLabel:GetText(), "PRESET")
+    assertEqual(currentFrame.selectedText:GetText(), "MacBook Pro Internal — Balanced")
+    assertContains(currentFrame.manualNote:GetText(), "macOS Display Default")
+    assertTrue(currentFrame.manualNote:IsShown())
+    assertTrue(currentFrame.applyButton:IsEnabled())
+    assertFalse(currentFrame.renameButton:IsEnabled())
+    assertFalse(currentFrame.deleteButton:IsEnabled())
+
+    currentFrame.presetButtons[2]:Click()
+    assertContains(currentFrame.manualNote:GetText(), "2560×1440")
+    assertContains(currentFrame.manualNote:GetText(), "75 Hz")
+
+    currentFrame.profileButtons[1]:Click()
+    assertEqual(select(1, addon.UI.GetSelection()), "profile")
+    assertEqual(addon.UI.GetSelectedProfile(), "Quality")
+    assertFalse(currentFrame.manualNote:IsShown())
+    assertTrue(currentFrame.renameButton:IsEnabled())
+    assertTrue(currentFrame.deleteButton:IsEnabled())
 end
 
 function tests.profile_rows_render_and_selection_updates_immediately()
@@ -481,6 +550,16 @@ function tests.apply_delegates_to_engine()
     assertEqual(message, "Applied Quality — 25 settings.")
 end
 
+function tests.preset_apply_delegates_to_builtin_engine()
+    presetApplyCalls = {}
+
+    local result, message = addon.UI.ApplySelection("external_1440p_balanced", "preset")
+    assertEqual(result, applyResult)
+    assertEqual(#presetApplyCalls, 1)
+    assertEqual(presetApplyCalls[1], "external_1440p_balanced")
+    assertEqual(message, "Applied 1440p External — Balanced — 25 settings.")
+end
+
 function tests.apply_without_selection_does_not_call_engine()
     applyCalls = {}
 
@@ -581,6 +660,7 @@ function tests.profile_list_refreshes_after_save_rename_and_delete()
     addon.UI.Show()
 
     local currentFrame = getFrame()
+    assertEqual(select(1, addon.UI.GetSelection()), "preset")
     currentFrame.nameInput:SetText("Quality")
     currentFrame.saveButton:Click()
     assertEqual(currentFrame.profileButtons[1].profileName, "Quality")
@@ -641,6 +721,11 @@ function tests.selection_is_transient_and_not_persisted()
     assertEqual(addon.UI.GetSelectedProfile(), "Quality")
     assertEqual(RenderSetDB.selectedProfile, nil)
     assertEqual(RenderSetDB.activeProfile, nil)
+
+    addon.UI.SelectBuiltInPreset("macbook_internal_balanced")
+    assertEqual(select(1, addon.UI.GetSelection()), "preset")
+    assertEqual(RenderSetDB.selectedPreset, nil)
+    assertEqual(RenderSetDB.activePreset, nil)
 end
 
 local passed = 0

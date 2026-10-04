@@ -28,6 +28,14 @@ local PROFILE_CVARS = {
     "useTargetFPS",
 }
 
+local PROFILE_CVAR_SET = {}
+for _, cvarName in ipairs(PROFILE_CVARS) do
+    PROFILE_CVAR_SET[cvarName] = true
+end
+
+local ProfileEngine = {}
+addon.ProfileEngine = ProfileEngine
+
 local GATED_CVARS = {
     useMaxFPS = "maxFPS",
     useTargetFPS = "targetFPS",
@@ -146,6 +154,37 @@ function addon.CaptureProfile(name)
     return result
 end
 
+function ProfileEngine.ApplyValues(profile)
+    local result = newResult()
+    for _, cvarName in ipairs(PROFILE_CVARS) do
+        local value = profile[cvarName]
+        local pairedValueCVar = GATED_CVARS[cvarName]
+
+        if value == nil then
+            result.skipped[cvarName] = "profile value is missing"
+        elseif type(value) ~= "string" then
+            result.errors[cvarName] = "stored value is not a string"
+        elseif pairedValueCVar and profile[pairedValueCVar] == nil then
+            result.skipped[cvarName] = "paired value is missing"
+        elseif pairedValueCVar and result.applied[pairedValueCVar] == nil then
+            result.skipped[cvarName] = "paired value was not applied"
+        else
+            applyCVar(result, cvarName, value)
+        end
+    end
+
+    result.success = not next(result.errors)
+    return result
+end
+
+function ProfileEngine.IsSupportedCVar(cvarName)
+    return PROFILE_CVAR_SET[cvarName] == true
+end
+
+function ProfileEngine.GetSupportedCVarCount()
+    return #PROFILE_CVARS
+end
+
 function addon.ApplyProfile(name)
     local result = newResult()
 
@@ -166,25 +205,7 @@ function addon.ApplyProfile(name)
         return result
     end
 
-    for _, cvarName in ipairs(PROFILE_CVARS) do
-        local value = profile[cvarName]
-        local pairedValueCVar = GATED_CVARS[cvarName]
-
-        if value == nil then
-            result.skipped[cvarName] = "profile value is missing"
-        elseif type(value) ~= "string" then
-            result.errors[cvarName] = "stored value is not a string"
-        elseif pairedValueCVar and profile[pairedValueCVar] == nil then
-            result.skipped[cvarName] = "paired value is missing"
-        elseif pairedValueCVar and result.applied[pairedValueCVar] == nil then
-            result.skipped[cvarName] = "paired value was not applied"
-        else
-            applyCVar(result, cvarName, value)
-        end
-    end
-
-    result.success = not next(result.errors)
-    return result
+    return ProfileEngine.ApplyValues(profile)
 end
 
 function addon.RenameProfile(oldName, newName)

@@ -6,6 +6,7 @@
 
 Core.lua
 Profiles.lua
+Presets.lua
 UI.lua
 Commands.lua
 MinimapButton.lua

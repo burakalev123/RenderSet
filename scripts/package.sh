@@ -16,6 +16,7 @@ package_files=(
     RenderSet.toc
     Core.lua
     Profiles.lua
+    Presets.lua
     UI.lua
     Commands.lua
     MinimapButton.lua

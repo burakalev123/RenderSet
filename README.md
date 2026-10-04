@@ -28,6 +28,22 @@ as compatible. Retail compatibility has not been evaluated.
 5. Save another profile, for example `Performance`.
 6. Select and apply either profile as needed.
 
+Built-in presets are also available above saved profiles in the UI:
+
+- **MacBook Pro Internal — Balanced**
+- **1440p External — Balanced**
+
+These are immutable, code-defined templates. Applying one does not create or
+overwrite a saved user profile. To customize one, apply it, adjust Blizzard
+Graphics Settings, then use **Save Current** with a new profile name. Presets
+are selected and applied manually; RenderSet does not switch them based on the
+connected display.
+
+For the MacBook preset, configure macOS Display to **Default** and use WoW in
+**Windowed** mode. For the external preset, configure **2560×1440 at 75 Hz**
+outside RenderSet. Monitor selection, display mode, physical resolution, and
+refresh rate remain manual and are never changed by these presets.
+
 ## Features
 
 - Save current supported graphics settings as named profiles.
@@ -36,6 +52,7 @@ as compatible. Retail compatibility has not been evaluated.
 - Persist profiles across `/reload`, logout, and login.
 - Open the standalone profile UI from the minimap button or slash commands.
 - Capture and apply graphics values through a fixed safe allowlist.
+- Apply two built-in balanced templates without adding them to SavedVariables.
 
 Slash commands:
 
@@ -93,7 +110,8 @@ control.
 This development expansion is not part of the published
 `RenderSet-0.1.0.zip` artifact.
 
-Saved profiles persist through `/reload`, logout, and login. The current UI
+Saved profiles persist through `/reload`, logout, and login. Built-in presets
+remain in code and are never seeded into `RenderSetDB.profiles`. The current UI
 selection is intentionally session-local and is not stored in `RenderSetDB`.
 
 ## Known limitations
@@ -117,8 +135,9 @@ The 0.1.0 release candidate passed 46 mock-based Lua regression tests. Current
 development tests additionally cover the expanded allowlist, linked FPS pair
 ordering and failure isolation, and legacy four/eleven-CVar profiles. The
 project owner separately completed individual build-70170 validation for the
-promoted CVars; the expanded engine still requires an integrated profile
-round-trip in the real client.
+promoted CVars and the integrated 25-CVar A → B → A engine round-trip. The new
+built-in preset selection and application flow still requires real-client
+acceptance.
 
 The automated tests do not emulate the embedded WoW Lua runtime or prove
 compatibility with future Forever builds.

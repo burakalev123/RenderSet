@@ -4,9 +4,11 @@ local UI = {}
 addon.UI = UI
 
 local frame
-local selectedProfile
+local selectedKind
+local selectedId
 local pendingDeleteProfile
 local profileButtons = {}
+local presetButtons = {}
 local applyButton
 local renameButton
 local deleteButton
@@ -219,7 +221,8 @@ function UI.RenameSelection(profileName, newName)
 
     local result = addon.RenameProfile(profileName, newName)
     if result.success then
-        selectedProfile = newName
+        selectedKind = "profile"
+        selectedId = newName
         cancelDeleteConfirmation()
         UI.RefreshProfileList()
     end
@@ -234,7 +237,8 @@ function UI.DeleteSelection(profileName)
 
     local result = addon.DeleteProfile(profileName)
     if result.success then
-        selectedProfile = nil
+        selectedKind = nil
+        selectedId = nil
         cancelDeleteConfirmation()
         UI.RefreshProfileList()
     end
@@ -262,13 +266,23 @@ function UI.RequestDeleteSelection(profileName)
     return UI.DeleteSelection(profileName)
 end
 
-function UI.ApplySelection(profileName)
-    if type(profileName) ~= "string" or profileName == "" then
+function UI.ApplySelection(selectionId, selectionKind)
+    if type(selectionId) ~= "string" or selectionId == "" then
         return nil, "Select a profile first."
     end
 
-    local result = addon.ApplyProfile(profileName)
-    return result, UI.SummarizeApply(profileName, result)
+    if selectionKind == "preset" then
+        local preset = addon.GetBuiltInPreset(selectionId)
+        if not preset then
+            return nil, "Select a profile first."
+        end
+
+        local result = addon.ApplyBuiltInPreset(selectionId)
+        return result, UI.SummarizeApply(preset.shortName, result)
+    end
+
+    local result = addon.ApplyProfile(selectionId)
+    return result, UI.SummarizeApply(selectionId, result)
 end
 
 local function updateSelection()
@@ -276,8 +290,8 @@ local function updateSelection()
         return
     end
 
-    for _, button in ipairs(profileButtons) do
-        local isSelected = button.profileName == selectedProfile
+    for _, button in ipairs(presetButtons) do
+        local isSelected = selectedKind == "preset" and button.selectionId == selectedId
         button.isSelected = isSelected
         if isSelected then
             button.selectedTexture:Show()
@@ -292,30 +306,70 @@ local function updateSelection()
         end
     end
 
+    for _, button in ipairs(profileButtons) do
+        local isSelected = selectedKind == "profile" and button.profileName == selectedId
+        button.isSelected = isSelected
+        if isSelected then
+            button.selectedTexture:Show()
+            button.hoverTexture:Hide()
+            button.accent:Show()
+            setTextColor(button.nameText, COLORS.text)
+        else
+            button.selectedTexture:Hide()
+            button.hoverTexture:Hide()
+            button.accent:Hide()
+            button.nameText:SetTextColor(0.84, 0.87, 0.9)
+        end
+    end
+
+    local selectedPreset = selectedKind == "preset" and addon.GetBuiltInPreset(selectedId) or nil
+    local selectedTitle = selectedPreset and selectedPreset.name or selectedId
     if frame.selectedText then
-        frame.selectedText:SetText(selectedProfile or "No profile selected")
-        if selectedProfile then
+        frame.selectedText:SetText(selectedTitle or "No profile selected")
+        if selectedTitle then
             frame.selectedText:SetTextColor(0.84, 0.9, 0.94)
         else
             setTextColor(frame.selectedText, COLORS.muted)
         end
     end
 
-    local hasSelection = selectedProfile ~= nil
+    if frame.selectionLabel then
+        frame.selectionLabel:SetText(selectedPreset and "PRESET" or "PROFILE")
+    end
+    if frame.manualNote then
+        frame.manualNote:SetText(selectedPreset and selectedPreset.manualNote or "")
+        frame.manualNote:SetShown(selectedPreset ~= nil)
+    end
+
+    local hasSelection = selectedId ~= nil
     setButtonEnabled(applyButton, hasSelection)
-    setButtonEnabled(renameButton, hasSelection)
-    setButtonEnabled(deleteButton, hasSelection)
+    setButtonEnabled(renameButton, hasSelection and selectedKind == "profile")
+    setButtonEnabled(deleteButton, hasSelection and selectedKind == "profile")
 end
 
 function UI.SelectProfile(profileName)
-    selectedProfile = profileName
+    selectedKind = profileName and "profile" or nil
+    selectedId = profileName
     cancelDeleteConfirmation()
     updateSelection()
     setStatus(profileName and ("Selected " .. profileName .. ".") or "Ready")
 end
 
 function UI.GetSelectedProfile()
-    return selectedProfile
+    return selectedKind == "profile" and selectedId or nil
+end
+
+function UI.SelectBuiltInPreset(presetId)
+    local preset = addon.GetBuiltInPreset(presetId)
+    selectedKind = preset and "preset" or nil
+    selectedId = preset and presetId or nil
+    cancelDeleteConfirmation()
+    updateSelection()
+    setStatus(preset and ("Selected " .. preset.shortName .. ".") or "Ready")
+end
+
+function UI.GetSelection()
+    return selectedKind, selectedId
 end
 
 local function createProfileButton(parent)
@@ -374,7 +428,11 @@ local function createProfileButton(parent)
         end
     end)
     button:SetScript("OnClick", function(self)
-        UI.SelectProfile(self.profileName)
+        if self.selectionKind == "preset" then
+            UI.SelectBuiltInPreset(self.selectionId)
+        else
+            UI.SelectProfile(self.profileName)
+        end
     end)
 
     return button
@@ -383,18 +441,59 @@ end
 function UI.RefreshProfileList()
     local names = UI.GetSortedProfileNames()
     local profiles = type(RenderSetDB) == "table" and RenderSetDB.profiles or nil
+    local presets = addon.BuiltinPresets or {}
 
-    if selectedProfile and (type(profiles) ~= "table" or type(profiles[selectedProfile]) ~= "table") then
-        selectedProfile = nil
+    if selectedKind == "profile" and selectedId
+        and (type(profiles) ~= "table" or type(profiles[selectedId]) ~= "table") then
+        selectedKind = nil
+        selectedId = nil
         cancelDeleteConfirmation()
     end
-    if not selectedProfile and #names > 0 then
-        selectedProfile = names[1]
+    if selectedKind == "preset" and not addon.GetBuiltInPreset(selectedId) then
+        selectedKind = nil
+        selectedId = nil
+    end
+    if not selectedId and #names > 0 then
+        selectedKind = "profile"
+        selectedId = names[1]
+    elseif not selectedId and #presets > 0 then
+        selectedKind = "preset"
+        selectedId = presets[1].id
     end
 
     if not frame then
         return names
     end
+
+    local rowStep = LAYOUT.rowHeight + 2
+    local sectionHeight = 18
+
+    for index, preset in ipairs(presets) do
+        local button = presetButtons[index]
+        if not button then
+            button = createProfileButton(frame.profileContent)
+            presetButtons[index] = button
+        end
+
+        button.selectionKind = "preset"
+        button.selectionId = preset.id
+        button.profileName = nil
+        button.nameText:SetText(preset.shortName)
+        button:ClearAllPoints()
+        button:SetPoint("TOPLEFT", 0, -(sectionHeight + ((index - 1) * rowStep)))
+        button:Show()
+    end
+
+    for index = #presets + 1, #presetButtons do
+        presetButtons[index]:Hide()
+        presetButtons[index].selectionId = nil
+    end
+
+    local profilesHeaderOffset = sectionHeight + (#presets * rowStep)
+    frame.presetsSectionLabel:ClearAllPoints()
+    frame.presetsSectionLabel:SetPoint("TOPLEFT", 2, -2)
+    frame.profilesSectionLabel:ClearAllPoints()
+    frame.profilesSectionLabel:SetPoint("TOPLEFT", 2, -(profilesHeaderOffset + 2))
 
     for index, profileName in ipairs(names) do
         local button = profileButtons[index]
@@ -403,10 +502,12 @@ function UI.RefreshProfileList()
             profileButtons[index] = button
         end
 
+        button.selectionKind = "profile"
+        button.selectionId = profileName
         button.profileName = profileName
         button.nameText:SetText(profileName)
         button:ClearAllPoints()
-        button:SetPoint("TOPLEFT", 0, -((index - 1) * (LAYOUT.rowHeight + 2)))
+        button:SetPoint("TOPLEFT", 0, -(profilesHeaderOffset + sectionHeight + ((index - 1) * rowStep)))
         button:Show()
     end
 
@@ -415,7 +516,7 @@ function UI.RefreshProfileList()
         profileButtons[index].profileName = nil
     end
 
-    local contentHeight = math.max(1, #names * (LAYOUT.rowHeight + 2))
+    local contentHeight = math.max(1, profilesHeaderOffset + sectionHeight + (#names * rowStep))
     frame.profileContent:SetHeight(contentHeight)
     frame.profileScroll.maxScroll = math.max(0, contentHeight - LAYOUT.profileViewportHeight)
     if frame.profileScroll:GetVerticalScroll() > frame.profileScroll.maxScroll then
@@ -423,6 +524,8 @@ function UI.RefreshProfileList()
     end
     frame.UpdateScrollbar()
     frame.emptyText:SetShown(#names == 0)
+    frame.emptyText:ClearAllPoints()
+    frame.emptyText:SetPoint("TOPLEFT", frame.profileContent, "TOPLEFT", 10, -(profilesHeaderOffset + sectionHeight + 7))
     if #names == 1 then
         frame.profileCountText:SetText("1 profile")
     else
@@ -626,7 +729,7 @@ local function createFrame()
 
     local profilesLabel = listPanel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     profilesLabel:SetPoint("TOPLEFT", 9, -7)
-    profilesLabel:SetText("PROFILES")
+    profilesLabel:SetText("GRAPHICS SETS")
     applyFont(profilesLabel, 12, GameFontNormalSmall)
     profilesLabel:SetTextColor(0.78, 0.82, 0.86)
 
@@ -648,6 +751,18 @@ local function createFrame()
     scrollFrame:SetScrollChild(profileContent)
     frame.profileScroll = scrollFrame
     frame.profileContent = profileContent
+
+    local presetsSectionLabel = profileContent:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    presetsSectionLabel:SetText("PRESETS")
+    applyFont(presetsSectionLabel, 10, GameFontDisableSmall)
+    presetsSectionLabel:SetTextColor(0.52, 0.58, 0.63)
+    frame.presetsSectionLabel = presetsSectionLabel
+
+    local profilesSectionLabel = profileContent:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    profilesSectionLabel:SetText("PROFILES")
+    applyFont(profilesSectionLabel, 10, GameFontDisableSmall)
+    profilesSectionLabel:SetTextColor(0.52, 0.58, 0.63)
+    frame.profilesSectionLabel = profilesSectionLabel
 
     local scrollTrack = CreateFrame("Frame", nil, listPanel)
     scrollTrack:SetWidth(4)
@@ -709,6 +824,7 @@ local function createFrame()
     profileLabel:SetText("PROFILE")
     applyFont(profileLabel, 12, GameFontNormalSmall)
     profileLabel:SetTextColor(0.78, 0.82, 0.86)
+    frame.selectionLabel = profileLabel
 
     local selectedText = rightPanel:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
     selectedText:SetPoint("TOPRIGHT", -12, -10)
@@ -720,9 +836,21 @@ local function createFrame()
     setTextColor(selectedText, COLORS.muted)
     frame.selectedText = selectedText
 
+    local manualNote = rightPanel:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
+    manualNote:SetPoint("TOPLEFT", 12, -31)
+    manualNote:SetPoint("RIGHT", -12, 0)
+    manualNote:SetHeight(24)
+    manualNote:SetJustifyH("LEFT")
+    manualNote:SetJustifyV("TOP")
+    manualNote:SetWordWrap(true)
+    applyFont(manualNote, 11, GameFontDisableSmall)
+    setTextColor(manualNote, COLORS.muted)
+    manualNote:Hide()
+    frame.manualNote = manualNote
+
     local nameInput = CreateFrame("EditBox", nil, rightPanel)
     nameInput:SetSize(LAYOUT.rightWidth - 24, 28)
-    nameInput:SetPoint("TOPLEFT", 12, -34)
+    nameInput:SetPoint("TOPLEFT", 12, -55)
     nameInput:SetAutoFocus(false)
     nameInput:SetMaxLetters(80)
     applyFont(nameInput, 13, ChatFontNormal)
@@ -754,9 +882,10 @@ local function createFrame()
 
     renameButton = createActionButton(rightPanel, "Rename", "secondary")
     renameButton:SetSize(143, LAYOUT.buttonHeight)
-    renameButton:SetPoint("TOPLEFT", 12, -70)
+    renameButton:SetPoint("TOPLEFT", 12, -89)
     renameButton:SetScript("OnClick", function()
-        local _, message, renamed = UI.RenameSelection(selectedProfile, nameInput:GetText())
+        local profileName = selectedKind == "profile" and selectedId or nil
+        local _, message, renamed = UI.RenameSelection(profileName, nameInput:GetText())
         setStatus(message)
 
         if renamed then
@@ -767,22 +896,23 @@ local function createFrame()
 
     deleteButton = createActionButton(rightPanel, "Delete", "secondary")
     deleteButton:SetSize(143, LAYOUT.buttonHeight)
-    deleteButton:SetPoint("TOPRIGHT", -12, -70)
+    deleteButton:SetPoint("TOPRIGHT", -12, -89)
     deleteButton:SetScript("OnClick", function()
-        local _, message = UI.RequestDeleteSelection(selectedProfile)
+        local profileName = selectedKind == "profile" and selectedId or nil
+        local _, message = UI.RequestDeleteSelection(profileName)
         setStatus(message)
     end)
     frame.deleteButton = deleteButton
 
     local statusLabel = rightPanel:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    statusLabel:SetPoint("TOPLEFT", 12, -111)
+    statusLabel:SetPoint("TOPLEFT", 12, -126)
     statusLabel:SetText("STATUS")
     applyFont(statusLabel, 12, GameFontNormalSmall)
     statusLabel:SetTextColor(0.78, 0.82, 0.86)
 
     local statusPanel = CreateFrame("Frame", nil, rightPanel)
     statusPanel:SetSize(LAYOUT.rightWidth - 24, 42)
-    statusPanel:SetPoint("TOPLEFT", 12, -128)
+    statusPanel:SetPoint("TOPLEFT", 12, -143)
     local statusBackground = statusPanel:CreateTexture(nil, "BACKGROUND")
     statusBackground:SetAllPoints()
     setTextureColor(statusBackground, COLORS.panelDeep)
@@ -828,7 +958,8 @@ local function createFrame()
         setStatus(message)
 
         if saved then
-            selectedProfile = name
+            selectedKind = "profile"
+            selectedId = name
             nameInput:SetText("")
             UI.RefreshProfileList()
         end
@@ -844,12 +975,13 @@ local function createFrame()
     applyButton:SetSize(190, 29)
     applyButton:SetPoint("RIGHT", -15, 0)
     applyButton:SetScript("OnClick", function()
-        local _, message = UI.ApplySelection(selectedProfile)
+        local _, message = UI.ApplySelection(selectedId, selectedKind)
         setStatus(message)
     end)
     frame.applyButton = applyButton
 
     frame.profileButtons = profileButtons
+    frame.presetButtons = presetButtons
 
     updateSelection()
     frame:Hide()
