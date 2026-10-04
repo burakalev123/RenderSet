@@ -153,7 +153,7 @@ function tests.definitions_are_exact_ordered_and_allowlisted()
     assertEqual(presets[2].shortName, "1440p External — Balanced")
 
     for _, preset in ipairs(presets) do
-        assertEqual(countKeys(preset.values), 25)
+        assertEqual(countKeys(preset.values), 24)
         for cvarName, value in pairs(preset.values) do
             assertTrue(EXPECTED_CVARS[cvarName], "unexpected preset CVar " .. cvarName)
             assertTrue(addon.ProfileEngine.IsSupportedCVar(cvarName))
@@ -161,7 +161,11 @@ function tests.definitions_are_exact_ordered_and_allowlisted()
             assertFalse(DISPLAY_DEVICE_CVARS[cvarName] == true)
         end
         assertEqual(preset.values.graphicsOutlineMode, nil)
+        assertEqual(preset.values.ResampleAlwaysSharpen, nil)
+        assertEqual(preset.values.ResampleSharpness, nil)
     end
+    assertTrue(addon.ProfileEngine.IsSupportedCVar("ResampleAlwaysSharpen"))
+    assertEqual(addon.ProfileEngine.GetSupportedCVarCount(), 25)
 end
 
 function tests.all_raw_values_are_exact()
@@ -176,12 +180,14 @@ function tests.all_raw_values_are_exact()
 
     assertEqual(mac.RenderScale, "0.75")
     assertEqual(mac.maxFPS, "60")
-    assertEqual(mac.ResampleAlwaysSharpen, "1")
     assertEqual(mac.useTargetFPS, "0")
     assertEqual(external.RenderScale, "1.0")
     assertEqual(external.maxFPS, "75")
-    assertEqual(external.ResampleAlwaysSharpen, "0")
     assertEqual(external.useTargetFPS, "0")
+    assertEqual(mac.ResampleAlwaysSharpen, nil)
+    assertEqual(external.ResampleAlwaysSharpen, nil)
+    assertEqual(mac.ResampleSharpness, nil)
+    assertEqual(external.ResampleSharpness, nil)
 end
 
 function tests.apply_uses_shared_engine_and_writes_all_values_in_pair_order()
@@ -202,8 +208,17 @@ function tests.apply_uses_shared_engine_and_writes_all_values_in_pair_order()
     local result = addon.ApplyBuiltInPreset("macbook_internal_balanced")
     assertTrue(result.success)
     assertEqual(sharedCalls, 1)
-    assertEqual(#calls.writes, 25)
-    assertEqual(countKeys(result.applied), 25)
+    assertEqual(#calls.writes, 24)
+    assertEqual(countKeys(result.applied), 24)
+    assertTrue(writeIndex(calls, "maxFPS") < writeIndex(calls, "useMaxFPS"))
+    assertTrue(writeIndex(calls, "targetFPS") < writeIndex(calls, "useTargetFPS"))
+
+    calls.writes = {}
+    result = addon.ApplyBuiltInPreset("external_1440p_balanced")
+    assertTrue(result.success)
+    assertEqual(sharedCalls, 2)
+    assertEqual(#calls.writes, 24)
+    assertEqual(countKeys(result.applied), 24)
     assertTrue(writeIndex(calls, "maxFPS") < writeIndex(calls, "useMaxFPS"))
     assertTrue(writeIndex(calls, "targetFPS") < writeIndex(calls, "useTargetFPS"))
 end
@@ -268,7 +283,7 @@ function tests.apply_does_not_mutate_definition_or_saved_variables()
     for cvarName, value in pairs(before) do
         assertEqual(preset.values[cvarName], value)
     end
-    assertEqual(countKeys(preset.values), 25)
+    assertEqual(countKeys(preset.values), 24)
 end
 
 function tests.reload_loads_code_definitions_without_seeding_profiles()

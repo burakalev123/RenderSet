@@ -19,7 +19,6 @@ local BuiltinPresets = {
             graphicsViewDistance = "6",
             graphicsTextureResolution = "2",
             graphicsSpellDensity = "0",
-            ResampleAlwaysSharpen = "1",
             vsync = "0",
             RenderScale = "0.75",
             ResampleQuality = "3",
@@ -52,7 +51,6 @@ local BuiltinPresets = {
             graphicsViewDistance = "6",
             graphicsTextureResolution = "2",
             graphicsSpellDensity = "0",
-            ResampleAlwaysSharpen = "0",
             vsync = "0",
             RenderScale = "1.0",
             ResampleQuality = "3",
@@ -81,7 +79,6 @@ for _, preset in ipairs(BuiltinPresets) do
         valueCount = valueCount + 1
     end
 
-    assert(valueCount == addon.ProfileEngine.GetSupportedCVarCount(), "built-in preset must define every supported CVar")
     presetsById[preset.id] = preset
 end
 

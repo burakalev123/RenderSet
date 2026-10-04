@@ -223,6 +223,20 @@ local applyResult = {
     skipped = {},
     errors = {},
 }
+local presetApplyResult = {
+    success = true,
+    saved = false,
+    captured = {},
+    applied = {
+        a = "1", b = "2", c = "3", d = "4", e = "5", f = "6",
+        g = "7", h = "8", i = "9", j = "10", k = "11",
+        l = "12", m = "13", n = "14", o = "15", p = "16", q = "17",
+        r = "18", s = "19", t = "20", u = "21", v = "22", w = "23",
+        x = "24",
+    },
+    skipped = {},
+    errors = {},
+}
 
 local function validateProfileName(name)
     if type(name) ~= "string" or name == "" then
@@ -271,7 +285,7 @@ local addon = {
     end,
     ApplyBuiltInPreset = function(id)
         presetApplyCalls[#presetApplyCalls + 1] = id
-        return applyResult
+        return presetApplyResult
     end,
     RenameProfile = function(oldName, newName)
         renameCalls[#renameCalls + 1] = { oldName, newName }
@@ -554,10 +568,10 @@ function tests.preset_apply_delegates_to_builtin_engine()
     presetApplyCalls = {}
 
     local result, message = addon.UI.ApplySelection("external_1440p_balanced", "preset")
-    assertEqual(result, applyResult)
+    assertEqual(result, presetApplyResult)
     assertEqual(#presetApplyCalls, 1)
     assertEqual(presetApplyCalls[1], "external_1440p_balanced")
-    assertEqual(message, "Applied 1440p External — Balanced — 25 settings.")
+    assertEqual(message, "Applied 1440p External — Balanced — 24 settings.")
 end
 
 function tests.apply_without_selection_does_not_call_engine()

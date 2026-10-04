@@ -37,7 +37,8 @@ These are immutable, code-defined templates. Applying one does not create or
 overwrite a saved user profile. To customize one, apply it, adjust Blizzard
 Graphics Settings, then use **Save Current** with a new profile name. Presets
 are selected and applied manually; RenderSet does not switch them based on the
-connected display.
+connected display. They are curated subsets of the production allowlist and
+intentionally leave the sharpening preference under user control.
 
 For the MacBook preset, configure macOS Display to **Default** and use WoW in
 **Windowed** mode. For the external preset, configure **2560×1440 at 75 Hz**
