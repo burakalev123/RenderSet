@@ -57,16 +57,38 @@ Version 0.1.0 stores only these allowlisted CVars:
 - `graphicsParticleDensity`
 - `graphicsViewDistance`
 
-Current development builds after 0.1.0 expand the verified allowlist to eleven
-CVars by adding:
+Current development builds after 0.1.0 expand the verified allowlist to 25 raw
+CVars:
 
+- `graphicsShadowQuality`
+- `graphicsProjectedTextures`
+- `graphicsParticleDensity`
 - `graphicsLiquidDetail`
 - `graphicsSSAO`
 - `graphicsDepthEffects`
 - `graphicsComputeEffects`
-- `graphicsOutlineMode`
 - `graphicsGroundClutter`
 - `graphicsEnvironmentDetail`
+- `graphicsViewDistance`
+- `graphicsTextureResolution`
+- `graphicsSpellDensity`
+- `ResampleAlwaysSharpen`
+- `vsync`
+- `RenderScale`
+- `ResampleQuality`
+- `textureFilteringMode`
+- `ffxAntiAliasingMode`
+- `graphicsLightMode`
+- `graphicsPBRLiquidDetail`
+- `graphicsBloomUserMult`
+- `maxFPS` and `useMaxFPS`
+- `targetFPS` and `useTargetFPS`
+
+Foreground and target FPS values are applied and verified before their enable
+gates. A legacy profile containing only a gate skips that gate safely. Stored
+`graphicsOutlineMode` values from earlier development builds are preserved but
+ignored because the current Forever Graphics UI has no user-facing Outline Mode
+control.
 
 This development expansion is not part of the published
 `RenderSet-0.1.0.zip` artifact.
@@ -76,8 +98,8 @@ selection is intentionally session-local and is not stored in `RenderSetDB`.
 
 ## Known limitations
 
-- RenderSet does not manage display mode, resolution, render scale, graphics
-  backend, GPU/device settings, or other restart-sensitive options.
+- RenderSet does not manage display mode, resolution, graphics backend,
+  GPU/device settings, or other restart-sensitive options.
 - Automatic context switching, import/export, and Retail support are not part
   of version 0.1.0.
 - The minimap button has a fixed position and is not configurable or persisted.
@@ -91,12 +113,12 @@ selection is intentionally session-local and is not stored in `RenderSetDB`.
 
 ## Validation
 
-The 0.1.0 release candidate passed 46 mock-based Lua regression tests covering
-database initialization, capture/apply allowlists, failure isolation, profile
-lifecycle, UI selection, and slash commands. The project owner separately
-completed the WoW Forever in-game MVP acceptance checklist, including profile
-round-trips, Blizzard Settings refresh, `/reload`, relog, rename/delete, and
-invalid-profile behavior.
+The 0.1.0 release candidate passed 46 mock-based Lua regression tests. Current
+development tests additionally cover the expanded allowlist, linked FPS pair
+ordering and failure isolation, and legacy four/eleven-CVar profiles. The
+project owner separately completed individual build-70170 validation for the
+promoted CVars; the expanded engine still requires an integrated profile
+round-trip in the real client.
 
 The automated tests do not emulate the embedded WoW Lua runtime or prove
 compatibility with future Forever builds.

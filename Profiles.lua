@@ -8,10 +8,29 @@ local PROFILE_CVARS = {
     "graphicsSSAO",
     "graphicsDepthEffects",
     "graphicsComputeEffects",
-    "graphicsOutlineMode",
     "graphicsGroundClutter",
     "graphicsEnvironmentDetail",
     "graphicsViewDistance",
+    "graphicsTextureResolution",
+    "graphicsSpellDensity",
+    "ResampleAlwaysSharpen",
+    "vsync",
+    "RenderScale",
+    "ResampleQuality",
+    "textureFilteringMode",
+    "ffxAntiAliasingMode",
+    "graphicsLightMode",
+    "graphicsPBRLiquidDetail",
+    "graphicsBloomUserMult",
+    "maxFPS",
+    "useMaxFPS",
+    "targetFPS",
+    "useTargetFPS",
+}
+
+local GATED_CVARS = {
+    useMaxFPS = "maxFPS",
+    useTargetFPS = "targetFPS",
 }
 
 local function newResult()
@@ -57,6 +76,31 @@ end
 
 local function writeCVar(cvarName, value)
     return C_CVar.SetCVar(cvarName, value)
+end
+
+local function applyCVar(result, cvarName, value)
+    local writeSucceeded, accepted = pcall(writeCVar, cvarName, value)
+
+    if not writeSucceeded then
+        result.errors[cvarName] = tostring(accepted)
+        return false
+    elseif accepted ~= true then
+        result.errors[cvarName] = "write was rejected"
+        return false
+    end
+
+    local readSucceeded, readback = pcall(readCVar, cvarName)
+
+    if not readSucceeded then
+        result.errors[cvarName] = tostring(readback)
+        return false
+    elseif readback ~= value then
+        result.errors[cvarName] = "readback did not match stored value"
+        return false
+    end
+
+    result.applied[cvarName] = readback
+    return true
 end
 
 function addon.CaptureProfile(name)
@@ -124,29 +168,18 @@ function addon.ApplyProfile(name)
 
     for _, cvarName in ipairs(PROFILE_CVARS) do
         local value = profile[cvarName]
+        local pairedValueCVar = GATED_CVARS[cvarName]
 
         if value == nil then
             result.skipped[cvarName] = "profile value is missing"
         elseif type(value) ~= "string" then
             result.errors[cvarName] = "stored value is not a string"
+        elseif pairedValueCVar and profile[pairedValueCVar] == nil then
+            result.skipped[cvarName] = "paired value is missing"
+        elseif pairedValueCVar and result.applied[pairedValueCVar] == nil then
+            result.skipped[cvarName] = "paired value was not applied"
         else
-            local writeSucceeded, accepted = pcall(writeCVar, cvarName, value)
-
-            if not writeSucceeded then
-                result.errors[cvarName] = tostring(accepted)
-            elseif accepted ~= true then
-                result.errors[cvarName] = "write was rejected"
-            else
-                local readSucceeded, readback = pcall(readCVar, cvarName)
-
-                if not readSucceeded then
-                    result.errors[cvarName] = tostring(readback)
-                elseif readback ~= value then
-                    result.errors[cvarName] = "readback did not match stored value"
-                else
-                    result.applied[cvarName] = readback
-                end
-            end
+            applyCVar(result, cvarName, value)
         end
     end
 
